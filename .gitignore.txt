@@ -1,0 +1,61 @@
+﻿## Archivos y carpetas temporales de Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Carpetas de compilación
+bin/
+obj/
+out/
+build/
+
+## Archivos de configuración locales
+*.local.json
+appsettings.Development.json
+
+## Archivos de publicación
+*.pubxml
+*.publishproj
+
+## Archivos generados por VS
+Generated\ Files/
+*.dbmdl
+*.bak
+*.log
+*.ldf
+*.mdf
+
+## Archivos de paquetes NuGet
+*.nupkg
+*.snupkg
+*.nuspec
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Archivos de sistema (Windows/macOS/Linux)
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+*.swp
+*.swo
+*~
+
+## Logs
+*.log
+
+## Archivos de test
+TestResult*/
+TestResults/
+*.coverage
+*.coveragexml
+
+## Archivos temporales de Resharper/CodeRush/etc.
+_ReSharper*/
+*.DotSettings.user
+.idea/
+*.tmp*
