@@ -5,6 +5,13 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configurar WebRootPath para que apunte a la carpeta wwwroot del proyecto (no del bin)
+var projectRoot = Directory.GetParent(builder.Environment.ContentRootPath)?.Parent?.Parent?.FullName;
+if (projectRoot != null)
+{
+    builder.Environment.WebRootPath = Path.Combine(projectRoot, "wwwroot");
+}
+
 // Configurar DbContext con SQL Server
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("SqlServer")));
@@ -31,7 +38,6 @@ app.Use(async (context, next) =>
         context.Response.Redirect("/login.html");
         return;
     }
-
     await next();
 });
 
@@ -44,6 +50,7 @@ app.UseSwaggerUI(c =>
 });
 
 // --- Endpoints ---
+
 // Listado de productos con categoría
 app.MapGet("/products", async (AppDbContext db) =>
     await db.Products.Include(p => p.Category).AsNoTracking().ToListAsync()
