@@ -404,18 +404,47 @@
     </div>
 
     <script>
-        // Store failed attempts and lockout status
-        let failedAttempts = {};
+        // STORAGE KEY
+        const STORAGE_KEY = 'shelf_login_attempts';
         const MAX_ATTEMPTS = 5;
-        const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
+        const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutos
+
+        // Intervalos de actualización
+        let lockoutInterval = null;
+
+        // Cargar intentos desde memoria (simulación de persistencia)
+        function loadAttempts() {
+            try {
+                const data = window.failedAttemptsStore || {};
+                return data;
+            } catch (e) {
+                return {};
+            }
+        }
+
+        // Guardar intentos en memoria (simulación de persistencia)
+        function saveAttempts(data) {
+            window.failedAttemptsStore = data;
+        }
+
+        // Inicializar datos
+        let failedAttempts = loadAttempts();
 
         function showLogin() {
             toggle('view-login');
             clearMessages();
             checkLockoutStatus();
         }
-        function showForgot() { toggle('view-forgot'); clearMessages(); }
-        function showReset() { toggle('view-reset'); clearMessages(); }
+
+        function showForgot() {
+            toggle('view-forgot');
+            clearMessages();
+        }
+
+        function showReset() {
+            toggle('view-reset');
+            clearMessages();
+        }
 
         function toggle(id) {
             for (const v of ['view-login', 'view-forgot', 'view-reset']) {
@@ -441,23 +470,64 @@
             msg.classList.add('msg-show');
         }
 
+        function formatTime(milliseconds) {
+            const minutes = Math.floor(milliseconds / 60000);
+            const seconds = Math.floor((milliseconds % 60000) / 1000);
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
         function checkLockoutStatus() {
             const username = document.getElementById('username').value.trim();
             const loginBtn = document.getElementById('login-btn');
 
+            // Limpiar intervalo anterior
+            if (lockoutInterval) {
+                clearInterval(lockoutInterval);
+                lockoutInterval = null;
+            }
+
             if (username && failedAttempts[username]) {
                 const { attempts, lockoutTime } = failedAttempts[username];
-                if (attempts >= MAX_ATTEMPTS && lockoutTime && (Date.now() - lockoutTime < LOCKOUT_DURATION)) {
-                    const remainingTime = Math.ceil((LOCKOUT_DURATION - (Date.now() - lockoutTime)) / 1000 / 60);
-                    loginBtn.disabled = true;
-                    showMessage('msg', `Su cuenta ha sido bloqueada temporalmente debido a múltiples intentos de inicio de sesión fallidos. Por favor, intenta de nuevo en ${remainingTime} minutos o contacta al administrador del sistema para asistencia inmediata.`, false);
-                    return true;
-                } else if (attempts >= MAX_ATTEMPTS && lockoutTime && (Date.now() - lockoutTime >= LOCKOUT_DURATION)) {
-                    // Reset attempts after lockout period
-                    failedAttempts[username] = { attempts: 0, lockoutTime: null };
-                    loginBtn.disabled = false;
+                const now = Date.now();
+
+                if (attempts >= MAX_ATTEMPTS && lockoutTime) {
+                    const elapsed = now - lockoutTime;
+
+                    if (elapsed < LOCKOUT_DURATION) {
+                        // Todavía bloqueado - actualizar cada segundo
+                        loginBtn.disabled = true;
+
+                        const updateTimer = () => {
+                            const currentElapsed = Date.now() - lockoutTime;
+                            if (currentElapsed >= LOCKOUT_DURATION) {
+                                // Bloqueo expirado
+                                failedAttempts[username] = { attempts: 0, lockoutTime: null };
+                                saveAttempts(failedAttempts);
+                                loginBtn.disabled = false;
+                                clearMessages();
+                                clearInterval(lockoutInterval);
+                                lockoutInterval = null;
+                            } else {
+                                const remaining = LOCKOUT_DURATION - currentElapsed;
+                                showMessage('msg',
+                                    `Su cuenta ha sido bloqueada temporalmente debido a múltiples intentos fallidos. Tiempo restante: ${formatTime(remaining)}. Por favor contacta al administrador si necesitas asistencia inmediata.`,
+                                    false
+                                );
+                            }
+                        };
+
+                        updateTimer(); // Llamar inmediatamente
+                        lockoutInterval = setInterval(updateTimer, 1000);
+                        return true;
+                    } else {
+                        // Bloqueo expirado
+                        failedAttempts[username] = { attempts: 0, lockoutTime: null };
+                        saveAttempts(failedAttempts);
+                        loginBtn.disabled = false;
+                    }
                 }
             }
+
             loginBtn.disabled = false;
             return false;
         }
@@ -471,7 +541,7 @@
                 return;
             }
 
-            // Check lockout status
+            // Verificar estado de bloqueo
             if (checkLockoutStatus()) {
                 return;
             }
@@ -483,12 +553,13 @@
             });
 
             if (r.ok) {
-                // Reset attempts on successful login
+                // Resetear intentos en login exitoso
                 failedAttempts[username] = { attempts: 0, lockoutTime: null };
+                saveAttempts(failedAttempts);
                 showMessage('msg', 'Inicio de sesión exitoso. Redirigiendo...', true);
                 setTimeout(() => window.location.href = '/swagger', 1000);
             } else {
-                // Increment failed attempts
+                // Incrementar intentos fallidos
                 if (!failedAttempts[username]) {
                     failedAttempts[username] = { attempts: 0, lockoutTime: null };
                 }
@@ -496,11 +567,15 @@
 
                 if (failedAttempts[username].attempts >= MAX_ATTEMPTS) {
                     failedAttempts[username].lockoutTime = Date.now();
-                    showMessage('msg', 'Su cuenta ha sido bloqueada temporalmente debido a múltiples intentos de inicio de sesión fallidos. Por favor, intenta de nuevo en 15 minutos o contacta al administrador del sistema para asistencia inmediata.', false);
-                    document.getElementById('login-btn').disabled = true;
+                    saveAttempts(failedAttempts);
+                    checkLockoutStatus(); // Activar el temporizador
                 } else {
+                    saveAttempts(failedAttempts);
                     const remainingAttempts = MAX_ATTEMPTS - failedAttempts[username].attempts;
-                    showMessage('msg', `Credenciales incorrectas. Le quedan ${remainingAttempts} intentos antes de que la cuenta sea bloqueada.`, false);
+                    showMessage('msg',
+                        `Credenciales incorrectas. Le quedan ${remainingAttempts} ${remainingAttempts === 1 ? 'intento' : 'intentos'} antes de que la cuenta sea bloqueada.`,
+                        false
+                    );
                 }
             }
         }
@@ -568,8 +643,21 @@
             if (e.key === 'Enter') login();
         });
 
-        // Check lockout status when username changes
+        // Verificar estado cuando cambia el usuario
         document.getElementById('username')?.addEventListener('input', checkLockoutStatus);
+
+        // Verificar al cargar la página
+        window.addEventListener('load', () => {
+            failedAttempts = loadAttempts();
+            checkLockoutStatus();
+        });
+
+        // Limpiar intervalo al salir
+        window.addEventListener('beforeunload', () => {
+            if (lockoutInterval) {
+                clearInterval(lockoutInterval);
+            }
+        });
     </script>
 </body>
 </html>
