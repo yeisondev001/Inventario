@@ -22,7 +22,7 @@ El flujo de funcionamiento general es el siguiente:
 
 ## 🧰 Tecnologías utilizadas
 
-### Backend
+### 💻 Backend
 
 - Lenguaje: C# (.NET)
 - Arquitectura: API REST
@@ -30,7 +30,7 @@ El flujo de funcionamiento general es el siguiente:
 - Patrones de diseño: Repositorio y Servicio
 - Autenticación (opcional): JSON Web Tokens (JWT)
 
-### Frontend
+### 🎨 Frontend
 
 - HTML5: estructura semántica del contenido.
 - CSS3: diseño adaptable y responsivo.
@@ -65,3 +65,4 @@ Actualmente en desarrollo activo. Algunas funcionalidades pueden cambiar.
 ## 📝 Licencia 
 
 Este proyecto está bajo la licencia MIT. Consulta el archivo [LICENSE](./LICENSE) para más detalles.
+
