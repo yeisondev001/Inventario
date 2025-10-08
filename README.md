@@ -41,7 +41,7 @@ El flujo de funcionamiento general es el siguiente:
 - Prisma ORM, compatible con bases de datos como MySQL, PostgreSQL o SQLite, dependiendo del entorno de despliegue.
 - Migraciones automáticas definidas en el archivo `schema.prisma` para mantener la consistencia de los datos.
 
-## Funcionalidades principales
+##  ⚙ Funcionalidades principales
 
 - 📦 Gestión de productos: permite registrar, modificar y eliminar artículos.
 - 📊 Control de existencias: muestra el stock actual disponible.
@@ -65,4 +65,5 @@ Actualmente en desarrollo activo. Algunas funcionalidades pueden cambiar.
 ## 📝 Licencia 
 
 Este proyecto está bajo la licencia MIT. Consulta el archivo [LICENSE](./LICENSE) para más detalles.
+
 
