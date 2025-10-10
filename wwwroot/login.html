@@ -582,11 +582,13 @@
 
         async function forgot() {
             const email = document.getElementById('email').value.trim();
+          
 
             if (!email) {
                 showMessage('msg-forgot', 'Por favor ingresa tu correo electrónico', false);
                 return;
             }
+            sessionStorage.setItem('resetEmail', email);
 
             const r = await fetch('/auth/forgot-password', {
                 method: 'POST',
@@ -609,6 +611,12 @@
         async function resetPass() {
             const token = document.getElementById('token').value.trim();
             const newPassword = document.getElementById('newpass').value.trim();
+            const email = sessionStorage.getItem('resetEmail') || '';
+
+            if (!email) {
+                showMessage('msg-reset', 'Email no encontrado. Vuelve al formulario de recuperar y envía tu correo otra vez.', false);
+                return;
+            }
 
             if (!token || !newPassword) {
                 showMessage('msg-reset', 'Por favor completa todos los campos', false);
@@ -623,15 +631,22 @@
             const r = await fetch('/auth/reset-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token, newPassword })
+                body: JSON.stringify({ email, token, newPassword })
             });
+
+            const text = await r.text();
 
             if (r.ok) {
                 showMessage('msg-reset', 'Contraseña actualizada exitosamente. Redirigiendo...', true);
                 setTimeout(() => showLogin(), 2000);
             } else {
-                const errorText = await r.text();
-                showMessage('msg-reset', errorText || 'Error al cambiar la contraseña', false);
+        
+                try {
+                    const data = JSON.parse(text);
+                    showMessage('msg-reset', (data?.message || data?.Errors || text), false);
+                } catch {
+                    showMessage('msg-reset', text || 'Error al cambiar la contraseña', false);
+                }
             }
         }
 
