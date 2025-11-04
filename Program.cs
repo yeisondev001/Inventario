@@ -1,10 +1,11 @@
-using Microsoft.EntityFrameworkCore;
 using InventarioApi.Data;
 using InventarioApi.Models;
-using Microsoft.OpenApi.Models;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -167,7 +168,46 @@ app.MapGet("/products/{id:int}/stock", async (int id, AppDbContext db) =>
     return Results.Ok(new { ProductId = id, Stock = stock });
 });
 
+// Buscar productos por nombre o SKU (con paginación)
+app.MapGet("/products/search", async (
+    [FromQuery] string q,
+    [FromQuery] int? page,
+    [FromQuery] int? pageSize,
+    AppDbContext db) =>
+{
+    if (string.IsNullOrWhiteSpace(q))
+        return Results.BadRequest("Debe especificar el parámetro 'q'.");
+
+    var pg = Math.Max(page ?? 1, 1);
+    var ps = Math.Max(pageSize ?? 10, 1);
+    q = q.Trim();
+
+    var query = db.Products
+        .AsNoTracking()
+        .Include(p => p.Category)
+        .Where(p =>
+            EF.Functions.Like(p.Name, $"%{q}%") ||
+            EF.Functions.Like(p.SKU, $"%{q}%"));
+
+    var total = await query.CountAsync();
+
+    var items = await query
+        .OrderBy(p => p.Name)
+        .Skip((pg - 1) * ps)
+        .Take(ps)
+        .Select(p => new {
+            p.Id,
+            p.SKU,
+            p.Name,
+            p.UnitPrice,
+            Category = p.Category != null ? p.Category.Name : null
+        })
+        .ToListAsync();
+
+    return Results.Ok(new { total, page = pg, pageSize = ps, items });
+});
 #endregion
+
 
 #region movimiento (entrada/salida)
 // Crear movimiento (entrada/salida)
