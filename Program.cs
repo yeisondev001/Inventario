@@ -125,10 +125,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseStaticFiles();
 
-// Middleware personalizado para redirigir la raíz ANTES de Swagger
+// Middleware personalizado para redirigir la raÃ­z ANTES de Swagger
 app.Use(async (context, next) =>
 {
-    // Si es la raíz, redirigir a login.html
+    // Si es la raÃ­z, redirigir a login.html
     if (context.Request.Path == "/")
     {
         context.Response.Redirect("/login.html");
@@ -142,13 +142,13 @@ app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Inventory API v1");
-    c.RoutePrefix = "swagger"; // Swagger estará en /swagger
+    c.RoutePrefix = "swagger"; // Swagger estarÃ¡ en /swagger
 });
 
 // --- Endpoints ---
 
 #region Products
-// Listado de productos con categoría
+// Listado de productos con categorÃ­a
 app.MapGet("/products", async (AppDbContext db) =>
     await db.Products.Include(p => p.Category).AsNoTracking().ToListAsync()
 );
@@ -250,12 +250,12 @@ app.MapPost("/auth/forgot-password", async (ForgotPasswordDto dto, UserManager<A
 
     var token = await userManager.GeneratePasswordResetTokenAsync(user);
 
-    // En producción enviar este token por email
+    // En producciÃ³n enviar este token por email
     return Results.Ok(new { token });
 });
 
 //Reset
-// Resetear contraseña
+// Resetear contraseÃ±a
 app.MapPost("/auth/reset-password", async (ResetPasswordDto dto, UserManager<AppUser> userManager) =>
 {
     var user = await userManager.FindByEmailAsync(dto.Email);
@@ -265,7 +265,7 @@ app.MapPost("/auth/reset-password", async (ResetPasswordDto dto, UserManager<App
     var result = await userManager.ResetPasswordAsync(user, dto.Token, dto.NewPassword);
 
     if (result.Succeeded)
-        return Results.Ok(new { Message = "Contraseña actualizada correctamente" });
+        return Results.Ok(new { Message = "ContraseÃ±a actualizada correctamente" });
 
     return Results.BadRequest(string.Join(", ", result.Errors.Select(e => e.Description)));
 });
