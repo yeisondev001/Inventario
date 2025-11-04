@@ -557,7 +557,7 @@
                 failedAttempts[username] = { attempts: 0, lockoutTime: null };
                 saveAttempts(failedAttempts);
                 showMessage('msg', 'Inicio de sesión exitoso. Redirigiendo...', true);
-                setTimeout(() => window.location.href = '/swagger', 1000);
+                setTimeout(() => window.location.href = 'FormularioInventario/formularioDeInventario.html', 1000);
             } else {
                 // Incrementar intentos fallidos
                 if (!failedAttempts[username]) {

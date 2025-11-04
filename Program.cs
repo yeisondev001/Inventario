@@ -125,10 +125,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseStaticFiles();
 
-// Middleware personalizado para redirigir la raÌz ANTES de Swagger
+// Middleware personalizado para redirigir la ra√É¬≠z ANTES de Swagger
 app.Use(async (context, next) =>
 {
-    // Si es la raÌz, redirigir a login.html
+    // Si es la ra√É¬≠z, redirigir a login.html
     if (context.Request.Path == "/")
     {
         context.Response.Redirect("/login.html");
@@ -142,13 +142,13 @@ app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Inventory API v1");
-    c.RoutePrefix = "swagger"; // Swagger estar· en /swagger
+    c.RoutePrefix = "swagger"; // Swagger estar√É¬° en /swagger
 });
 
 // --- Endpoints ---
 
 #region Products
-// Listado de productos con categorÌa
+// Listado de productos con categor√É¬≠a
 app.MapGet("/products", async (AppDbContext db) =>
     await db.Products.Include(p => p.Category).AsNoTracking().ToListAsync()
 );
@@ -168,7 +168,7 @@ app.MapGet("/products/{id:int}/stock", async (int id, AppDbContext db) =>
     return Results.Ok(new { ProductId = id, Stock = stock });
 });
 
-// Buscar productos por nombre o SKU (con paginaciÛn)
+// Buscar productos por nombre o SKU (con paginaci√≥n)
 app.MapGet("/products/search", async (
     [FromQuery] string q,
     [FromQuery] int? page,
@@ -176,7 +176,7 @@ app.MapGet("/products/search", async (
     AppDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(q))
-        return Results.BadRequest("Debe especificar el par·metro 'q'.");
+        return Results.BadRequest("Debe especificar el par√°metro 'q'.");
 
     var pg = Math.Max(page ?? 1, 1);
     var ps = Math.Max(pageSize ?? 10, 1);
@@ -250,12 +250,12 @@ app.MapPost("/auth/forgot-password", async (ForgotPasswordDto dto, UserManager<A
 
     var token = await userManager.GeneratePasswordResetTokenAsync(user);
 
-    // En producciÛn enviar este token por email
+    // En producci√É¬≥n enviar este token por email
     return Results.Ok(new { token });
 });
 
 //Reset
-// Resetear contraseÒa
+// Resetear contrase√É¬±a
 app.MapPost("/auth/reset-password", async (ResetPasswordDto dto, UserManager<AppUser> userManager) =>
 {
     var user = await userManager.FindByEmailAsync(dto.Email);
@@ -265,11 +265,18 @@ app.MapPost("/auth/reset-password", async (ResetPasswordDto dto, UserManager<App
     var result = await userManager.ResetPasswordAsync(user, dto.Token, dto.NewPassword);
 
     if (result.Succeeded)
-        return Results.Ok(new { Message = "ContraseÒa actualizada correctamente" });
+        return Results.Ok(new { Message = "Contrase√É¬±a actualizada correctamente" });
 
     return Results.BadRequest(string.Join(", ", result.Errors.Select(e => e.Description)));
 });
 
+#endregion
+
+app.Run();
+
+public record UserLogin(string Username, string Password);
+public record ForgotPasswordDto(string Email);
+public record ResetPasswordDto(string Email, string Token, string NewPassword);
 
 #endregion
 
