@@ -1,10 +1,11 @@
-using Microsoft.EntityFrameworkCore;
 using InventarioApi.Data;
 using InventarioApi.Models;
-using Microsoft.OpenApi.Models;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -124,10 +125,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseStaticFiles();
 
-// Middleware personalizado para redirigir la raíz ANTES de Swagger
+// Middleware personalizado para redirigir la raÃ­z ANTES de Swagger
 app.Use(async (context, next) =>
 {
-    // Si es la raíz, redirigir a login.html
+    // Si es la raÃ­z, redirigir a login.html
     if (context.Request.Path == "/")
     {
         context.Response.Redirect("/login.html");
@@ -141,13 +142,13 @@ app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Inventory API v1");
-    c.RoutePrefix = "swagger"; // Swagger estará en /swagger
+    c.RoutePrefix = "swagger"; // Swagger estarÃ¡ en /swagger
 });
 
 // --- Endpoints ---
 
 #region Products
-// Listado de productos con categoría
+// Listado de productos con categorÃ­a
 app.MapGet("/products", async (AppDbContext db) =>
     await db.Products.Include(p => p.Category).AsNoTracking().ToListAsync()
 );
@@ -167,7 +168,46 @@ app.MapGet("/products/{id:int}/stock", async (int id, AppDbContext db) =>
     return Results.Ok(new { ProductId = id, Stock = stock });
 });
 
+// Buscar productos por nombre o SKU (con paginaciÃ³n)
+app.MapGet("/products/search", async (
+    [FromQuery] string q,
+    [FromQuery] int? page,
+    [FromQuery] int? pageSize,
+    AppDbContext db) =>
+{
+    if (string.IsNullOrWhiteSpace(q))
+        return Results.BadRequest("Debe especificar el parÃ¡metro 'q'.");
+
+    var pg = Math.Max(page ?? 1, 1);
+    var ps = Math.Max(pageSize ?? 10, 1);
+    q = q.Trim();
+
+    var query = db.Products
+        .AsNoTracking()
+        .Include(p => p.Category)
+        .Where(p =>
+            EF.Functions.Like(p.Name, $"%{q}%") ||
+            EF.Functions.Like(p.SKU, $"%{q}%"));
+
+    var total = await query.CountAsync();
+
+    var items = await query
+        .OrderBy(p => p.Name)
+        .Skip((pg - 1) * ps)
+        .Take(ps)
+        .Select(p => new {
+            p.Id,
+            p.SKU,
+            p.Name,
+            p.UnitPrice,
+            Category = p.Category != null ? p.Category.Name : null
+        })
+        .ToListAsync();
+
+    return Results.Ok(new { total, page = pg, pageSize = ps, items });
+});
 #endregion
+
 
 #region movimiento (entrada/salida)
 // Crear movimiento (entrada/salida)
@@ -210,12 +250,12 @@ app.MapPost("/auth/forgot-password", async (ForgotPasswordDto dto, UserManager<A
 
     var token = await userManager.GeneratePasswordResetTokenAsync(user);
 
-    // En producción enviar este token por email
+    // En producciÃ³n enviar este token por email
     return Results.Ok(new { token });
 });
 
 //Reset
-// Resetear contraseña
+// Resetear contraseÃ±a
 app.MapPost("/auth/reset-password", async (ResetPasswordDto dto, UserManager<AppUser> userManager) =>
 {
     var user = await userManager.FindByEmailAsync(dto.Email);
@@ -225,11 +265,18 @@ app.MapPost("/auth/reset-password", async (ResetPasswordDto dto, UserManager<App
     var result = await userManager.ResetPasswordAsync(user, dto.Token, dto.NewPassword);
 
     if (result.Succeeded)
-        return Results.Ok(new { Message = "Contraseña actualizada correctamente" });
+        return Results.Ok(new { Message = "ContraseÃ±a actualizada correctamente" });
 
     return Results.BadRequest(string.Join(", ", result.Errors.Select(e => e.Description)));
 });
 
+#endregion
+
+app.Run();
+
+public record UserLogin(string Username, string Password);
+public record ForgotPasswordDto(string Email);
+public record ResetPasswordDto(string Email, string Token, string NewPassword);
 
 #endregion
 
