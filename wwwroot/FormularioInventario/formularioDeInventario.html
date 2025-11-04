@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="FormularioStyle.css">
+    <title>Sistema de Inventario</title>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-icon">
+                &#128230;
+            </div>
+            <div class="header-content">
+                <h1>Sistema de Inventario</h1>
+                <p>Gestion y control de productos</p>
+            </div>
+        </div>
+
+        <div class="form-card">
+            <div class="form-title">
+                <h2>Registro de Producto</h2>
+                <p>Complete todos los campos para agregar un nuevo producto</p>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="codigo">Codigo de Producto *</label>
+                    <input type="text" id="codigo" placeholder="Ej: PROD001">
+                </div>
+
+                <div class="form-group span-2">
+                    <label for="descripcion">Descripcion *</label>
+                    <input type="text" id="descripcion" placeholder="Nombre completo del producto">
+                </div>
+
+                <div class="form-group">
+                    <label for="precioCompra">Precio Compra *</label>
+                    <div class="input-with-icon">
+                        <span class="input-icon">$</span>
+                        <input type="number" id="precioCompra" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="precioVenta">Precio Venta *</label>
+                    <div class="input-with-icon">
+                        <span class="input-icon">$</span>
+                        <input type="number" id="precioVenta" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Margen (%)</label>
+                    <div class="input-with-icon">
+                        <input type="text" id="margen" readonly value="0.00">
+                        <span class="input-suffix">%</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="cantidad">Cantidad *</label>
+                    <input type="number" id="cantidad" min="1" placeholder="0">
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="agregarProducto()">
+                    &#10133; Agregar Producto
+                </button>
+                <button class="btn-secondary" onclick="generarReporte()">
+                    &#128196; Generar Reporte
+                </button>
+            </div>
+        </div>
+
+        <div class="products-card" id="productsCard">
+            <div class="products-header">
+                <div class="products-header-content">
+                    <h2>Productos Registrados</h2>
+                    <p>Total de productos: <span id="totalProductos">0</span></p>
+                </div>
+                <div class="total-badge">
+                    <p id="totalValor">$0.00</p>
+                    <p>Valor total</p>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Codigo</th>
+                            <th>Descripcion</th>
+                            <th class="text-right">P. Compra</th>
+                            <th class="text-right">P. Venta</th>
+                            <th class="text-right">Margen</th>
+                            <th class="text-right">Cantidad</th>
+                            <th class="text-right">Subtotal</th>
+                            <th class="text-center">Accion</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productosTableBody">
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="6" class="text-right total-label">TOTAL INVENTARIO:</td>
+                            <td class="text-right total-value" id="totalFooter">$0.00</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script src="Formulariojs.js"></script>
+</body>
+</html>
