@@ -54,41 +54,38 @@
         }
 
         function actualizarTabla() {
-            var tbody = document.getElementById('productosTableBody');
-            var productsCard = document.getElementById('productsCard');
-            
-            if (productos.length === 0) {
+            const tbody = document.getElementById('productosTableBody');
+            const productsCard = document.getElementById('productsCard');
+
+
+            tbody.innerHTML = '';
+
+            if (!productos || productos.length === 0) {
                 productsCard.classList.remove('show');
+                document.getElementById('totalProductos').textContent = '0';
+                document.getElementById('totalValor').textContent = '$0.00';
+                document.getElementById('totalFooter').textContent = '$0.00';
                 return;
             }
 
             productsCard.classList.add('show');
-            tbody.innerHTML = '';
 
-            productos.forEach(function(producto, index) {
-                var tr = document.createElement('tr');
-                var margenClass = producto.margen >= 0 ? 'margin-positive' : 'margin-negative';
-                
-                tr.innerHTML = 
-                    '<td class="code-cell">' + producto.codigo + '</td>' +
-                    '<td class="description-cell">' + producto.descripcion + '</td>' +
-                    '<td class="text-right">$' + parseFloat(producto.precioCompra).toFixed(2) + '</td>' +
-                    '<td class="text-right">$' + parseFloat(producto.precioVenta).toFixed(2) + '</td>' +
-                    '<td class="text-right">' +
-                        '<span class="margin-badge ' + margenClass + '">' + producto.margen + '%</span>' +
-                    '</td>' +
-                    '<td class="text-right">' + producto.cantidad + '</td>' +
-                    '<td class="text-right subtotal-cell">$' + producto.subtotal + '</td>' +
-                    '<td class="text-center">' +
-                        '<button class="delete-btn" onclick="eliminarProducto(' + producto.id + ')" title="Eliminar producto">' +
-                            '&#128465;' +
-                        '</button>' +
-                    '</td>';
-                
+            productos.forEach((p) => {
+                const margenClass = p.margen >= 0 ? 'margin-positive' : 'margin-negative';
+                const tr = document.createElement('tr');
+                tr.innerHTML =
+                    '<td class="code-cell">' + p.codigo + '</td>' +
+                    '<td class="description-cell">' + p.descripcion + '</td>' +
+                    '<td class="text-right">$' + parseFloat(p.precioCompra).toFixed(2) + '</td>' +
+                    '<td class="text-right">$' + parseFloat(p.precioVenta).toFixed(2) + '</td>' +
+                    '<td class="text-right"><span class="margin-badge ' + margenClass + '">' + p.margen + '%</span></td>' +
+                    '<td class="text-right">' + p.cantidad + '</td>' +
+                    '<td class="text-right subtotal-cell">$' + p.subtotal + '</td>' +
+                    '<td class="text-center"><button class="delete-btn" onclick="eliminarProducto(' + p.id + ')" title="Eliminar producto">&#128465;</button></td>';
                 tbody.appendChild(tr);
             });
 
-            var total = productos.reduce(function(sum, p) { return sum + parseFloat(p.subtotal); }, 0);
+            const total = productos.reduce((sum, p) => sum + parseFloat(p.subtotal), 0);
             document.getElementById('totalProductos').textContent = productos.length;
             document.getElementById('totalValor').textContent = '$' + total.toFixed(2);
             document.getElementById('totalFooter').textContent = '$' + total.toFixed(2);
@@ -114,3 +111,83 @@
 
             alert('REPORTE DE INVENTARIO\n\nTotal de productos: ' + productos.length + '\nTotal de unidades: ' + totalUnidades + '\nValor total: $' + totalInventario.toFixed(2));
         }
+
+
+        document.getElementById("btnBuscar").addEventListener("click", buscarProductos);
+        document.getElementById("btnLimpiar").addEventListener("click", limpiarBusqueda);
+
+        async function buscarProductos() {
+            const q = document.getElementById("txtBuscar").value.trim();
+            const msg = document.getElementById("searchMsg");
+
+            if (!q) {
+                msg.textContent = "Ingrese un texto para buscar.";
+                msg.style.color = "red";
+                return;
+            }
+
+            msg.textContent = "Buscando…";
+            msg.style.color = "#6a737d";
+
+            try {
+                const response = await fetch(`/products/search?q=${encodeURIComponent(q)}`);
+
+                if (!response.ok) {
+                    msg.textContent = "Error al buscar productos.";
+                    msg.style.color = "red";
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (data.total === 0) {
+                    msg.textContent = "No se encontraron productos.";
+                    msg.style.color = "red";
+                    actualizarTablaBusqueda([]); 
+                    return;
+                }
+
+                msg.textContent = `Resultados encontrados: ${data.total}`;
+                msg.style.color = "green";
+
+                actualizarTablaBusqueda(data.items);
+
+            } catch (error) {
+                msg.textContent = "Error de conexion con el servidor.";
+                msg.style.color = "red";
+            }
+        }
+
+        function limpiarBusqueda() {
+            document.getElementById("txtBuscar").value = "";
+            document.getElementById("searchMsg").textContent = "";
+            actualizarTablaBusqueda([]);
+        }
+
+
+        function actualizarTablaBusqueda(items) {
+            const tbody = document.getElementById("productosTableBody");
+
+            tbody.innerHTML = "";
+
+            items.forEach(p => {
+                const tr = document.createElement("tr");
+
+                tr.innerHTML = `
+                    <td>${p.sku}</td>
+                    <td>${p.name}</td>
+                    <td class="text-right">$${p.unitPrice.toFixed(2)}</td>
+                    <td class="text-right">-</td>
+                    <td class="text-right">-</td>
+                    <td class="text-right">-</td>
+                    <td class="text-right">$${p.unitPrice.toFixed(2)}</td>
+                    <td class="text-center">N/A</td>
+                `;
+
+                tbody.appendChild(tr);
+            });
+        }
+        document.getElementById('btnAgregar').addEventListener('click', agregarProducto);
+        document.getElementById('btnReporte').addEventListener('click', generarReporte);
+
+

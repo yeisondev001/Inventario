@@ -148,12 +148,13 @@ app.UseSwaggerUI(c =>
 // --- Endpoints ---
 
 #region Products
-// Listado de productos con categorÃ­a
+
+// GET /products  
 app.MapGet("/products", async (AppDbContext db) =>
     await db.Products.Include(p => p.Category).AsNoTracking().ToListAsync()
 );
 
-// Stock total por producto (sum(In) - sum(Out))
+// GET /products/{id}/stock  
 app.MapGet("/products/{id:int}/stock", async (int id, AppDbContext db) =>
 {
     var exists = await db.Products.AnyAsync(p => p.Id == id);
@@ -168,7 +169,7 @@ app.MapGet("/products/{id:int}/stock", async (int id, AppDbContext db) =>
     return Results.Ok(new { ProductId = id, Stock = stock });
 });
 
-// Buscar productos por nombre o SKU (con paginación)
+// GET /products/search
 app.MapGet("/products/search", async (
     [FromQuery] string q,
     [FromQuery] int? page,
@@ -206,6 +207,67 @@ app.MapGet("/products/search", async (
 
     return Results.Ok(new { total, page = pg, pageSize = ps, items });
 });
+
+
+// ✅✅✅ AQUI pegamos el nuevo POST /products
+// Crear producto (y registrar stock de entrada)
+app.MapPost("/products", async ([FromBody] CreateProductRequest req, AppDbContext db) =>
+{
+    if (string.IsNullOrWhiteSpace(req.SKU) || string.IsNullOrWhiteSpace(req.Name))
+        return Results.BadRequest("SKU y Name son obligatorios.");
+
+    if (req.UnitPrice < 0)
+        return Results.BadRequest("UnitPrice no puede ser negativo.");
+
+    var product = await db.Products.FirstOrDefaultAsync(p => p.SKU == req.SKU);
+
+    if (product is null)
+    {
+        product = new Product
+        {
+            SKU = req.SKU.Trim(),
+            Name = req.Name.Trim(),
+            UnitPrice = req.UnitPrice,
+            CategoryId = req.CategoryId
+        };
+
+        db.Products.Add(product);
+        await db.SaveChangesAsync();
+    }
+    else
+    {
+        product.UnitPrice = req.UnitPrice;
+        if (req.CategoryId.HasValue) product.CategoryId = req.CategoryId;
+        await db.SaveChangesAsync();
+    }
+
+    if (req.Quantity > 0)
+    {
+        db.InventoryMovements.Add(new InventoryMovement
+        {
+            ProductId = product.Id,
+            Quantity = req.Quantity,
+            Type = MovementType.In,
+        });
+
+        await db.SaveChangesAsync();
+    }
+
+    var stock = await db.InventoryMovements
+        .Where(m => m.ProductId == product.Id)
+        .SumAsync(m => m.Type == MovementType.In ? m.Quantity : -m.Quantity);
+
+    return Results.Created($"/products/{product.Id}", new
+    {
+        product.Id,
+        product.SKU,
+        product.Name,
+        product.UnitPrice,
+        product.CategoryId,
+        Stock = stock
+    });
+});
+
 #endregion
 
 
@@ -272,16 +334,17 @@ app.MapPost("/auth/reset-password", async (ResetPasswordDto dto, UserManager<App
 
 #endregion
 
-app.Run();
-
-public record UserLogin(string Username, string Password);
-public record ForgotPasswordDto(string Email);
-public record ResetPasswordDto(string Email, string Token, string NewPassword);
-
-#endregion
 
 app.Run();
 
 public record UserLogin(string Username, string Password);
 public record ForgotPasswordDto(string Email);
 public record ResetPasswordDto(string Email, string Token, string NewPassword);
+
+public record CreateProductRequest(
+    string SKU,
+    string Name,
+    decimal UnitPrice,
+    int? CategoryId,
+    int Quantity
+);

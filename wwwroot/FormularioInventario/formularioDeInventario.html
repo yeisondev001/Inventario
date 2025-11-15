@@ -66,16 +66,16 @@
             </div>
 
             <div class="button-group">
-                <button class="btn-primary" onclick="agregarProducto()">
+                <button id="btnAgregar" type="button" class="btn-primary">
                     &#10133; Agregar Producto
                 </button>
-                <button class="btn-secondary" onclick="generarReporte()">
+                <button id="btnReporte" type="button" class="btn-secondary">
                     &#128196; Generar Reporte
                 </button>
             </div>
         </div>
 
-        <div class="products-card" id="productsCard">
+        <div class="products-card show" id="productsCard">
             <div class="products-header">
                 <div class="products-header-content">
                     <h2>Productos Registrados</h2>
@@ -86,6 +86,16 @@
                     <p>Valor total</p>
                 </div>
             </div>
+
+            <div class="search-bar" style="display:flex;gap:10px;align-items:center;margin:10px 0 14px;">
+                <input id="txtBuscar"
+                       type="text"
+                       placeholder="Buscar por nombre o código (SKU)…"
+                       style="flex:1;padding:10px 12px;border:1px solid #d0d7de;border-radius:8px;">
+                <button id="btnBuscar" class="btn-secondary" style="white-space:nowrap;">🔎 Buscar</button>
+                <button id="btnLimpiar" class="btn-secondary" style="white-space:nowrap;">✖ Limpiar</button>
+            </div>
+            <div id="searchMsg" style="margin:6px 0 12px 0;color:#6a737d;"></div>
 
             <div class="table-container">
                 <table>
