@@ -3,12 +3,16 @@
 // ============================================
 let productos = [];
 let charts = {};
+
+
+
 // Titulos de vistas
 const viewTitles = {
     'dashboard': 'Dashboard',
     'estadisticas': 'Estadisticas',
     'add-product': 'Agregar Producto',
-    'products': 'Gestion de Productos'
+    'products': 'Gestion de Productos',
+    'users': 'Gestión de Usuarios'
 };
 
 // ============================================
@@ -23,6 +27,14 @@ async function inicializarApp() {
     await cargarProductos();
     actualizarStats();
     crearGraficasDashboard();
+
+    // ⬇️ AGREGAR ESTAS LÍNEAS AQUÍ ⬇️
+    inicializarEventosUsuarios();
+
+    // Si estamos en la vista de usuarios, cargar usuarios
+    if (window.location.hash === '#users') {
+        cargarUsuarios();
+    }
 }
 
 // ============================================
@@ -104,6 +116,13 @@ function showView(viewId) {
     if (viewId === 'estadisticas') {
         setTimeout(() => {
             crearGraficas();
+        }, 100);
+    }
+
+    // Si es la vista de usuarios, cargar usuarios
+    if (viewId === 'users') {
+        setTimeout(() => {
+            cargarUsuarios();
         }, 100);
     }
 
@@ -820,3 +839,368 @@ function limpiarFormulario() {
     document.getElementById('cantidad').value = '';
     document.getElementById('margen').value = '0.00';
 }
+
+
+// ============================================
+// VARIABLES GLOBALES PARA USUARIOS
+// ============================================
+let usuarios = [];
+
+// Agregar 'users' al objeto viewTitles existente
+viewTitles.users = 'Gestión de Usuarios';
+
+// ============================================
+// INICIALIZAR EVENTOS DE USUARIOS
+// ============================================
+function inicializarEventosUsuarios() {
+    // Botón nuevo usuario
+    const btnNuevo = document.getElementById('btnNuevoUsuario');
+    if (btnNuevo) {
+        btnNuevo.addEventListener('click', abrirModalUsuario);
+    }
+
+    // Formulario usuario
+    const formUsuario = document.getElementById('formUsuario');
+    if (formUsuario) {
+        formUsuario.addEventListener('submit', guardarUsuario);
+    }
+
+    // Búsqueda de usuarios
+    const searchUsuarios = document.getElementById('searchUsuarios');
+    if (searchUsuarios) {
+        searchUsuarios.addEventListener('input', function (e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const usuariosFiltrados = usuarios.filter(u =>
+                u.userName.toLowerCase().includes(searchTerm) ||
+                u.email.toLowerCase().includes(searchTerm) ||
+                (u.roles && u.roles.some(r => r.toLowerCase().includes(searchTerm)))
+            );
+            actualizarTablaUsuarios(usuariosFiltrados);
+        });
+    }
+
+    // Cerrar modal al hacer clic fuera
+    const modalUsuario = document.getElementById('modalUsuario');
+    if (modalUsuario) {
+        modalUsuario.addEventListener('click', function (e) {
+            if (e.target === this) {
+                cerrarModalUsuario();
+            }
+        });
+    }
+}
+
+// ============================================
+// CARGAR USUARIOS DESDE LA API
+// ============================================
+async function cargarUsuarios() {
+    try {
+        const response = await fetch('/api/users');
+        if (!response.ok) {
+            throw new Error('Error al cargar usuarios');
+        }
+        usuarios = await response.json();
+        actualizarTablaUsuarios();
+        actualizarStatsUsuarios();
+    } catch (error) {
+        console.error('Error cargando usuarios:', error);
+        const tbody = document.getElementById('usuariosTableBody');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #ef4444; padding: 40px;">Error al cargar usuarios. Verifique la conexión.</td></tr>';
+        }
+    }
+}
+
+// ============================================
+// ACTUALIZAR TABLA DE USUARIOS
+// ============================================
+function actualizarTablaUsuarios(usuariosAMostrar = usuarios) {
+    const tbody = document.getElementById('usuariosTableBody');
+    if (!tbody) return;
+
+    if (usuariosAMostrar.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #999; padding: 40px;">No hay usuarios registrados</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = usuariosAMostrar.map(usuario => {
+        const role = usuario.roles && usuario.roles.length > 0 ? usuario.roles[0] : 'User';
+        const roleClass = role === 'Admin' ? 'admin' : 'user';
+        const statusClass = usuario.emailConfirmed ? 'confirmed' : 'pending';
+        const statusText = usuario.emailConfirmed ? 'Confirmado' : 'Pendiente';
+
+        return `
+            <tr>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <!-- CAMBIADO: gradiente azul en lugar de morado -->
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 16px;">
+                            ${usuario.userName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; color: #111827;">${usuario.userName}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>${usuario.email}</td>
+                <td>
+                    <span class="role-badge ${roleClass}">
+                        ${role === 'Admin' ? '👑' : '👤'} ${role}
+                    </span>
+                </td>
+                <td>
+                    <span class="status-badge ${statusClass}">
+                        ${statusText}
+                    </span>
+                </td>
+                <td>
+                    <div style="display: flex; gap: 8px;">
+                        <button 
+                            class="action-btn" 
+                            onclick="editarUsuario('${usuario.id}')"
+                            style="background-color: #dbeafe; color: #1e40af;"
+                        >
+                            Editar
+                        </button>
+                        <button 
+                            class="action-btn" 
+                            onclick="eliminarUsuario('${usuario.id}')"
+                            style="background-color: #fee; color: #dc2626;"
+                        >
+                            Eliminar
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// ============================================
+// ACTUALIZAR ESTADÍSTICAS DE USUARIOS
+// ============================================
+function actualizarStatsUsuarios() {
+    const totalUsuarios = usuarios.length;
+    const usuariosAdmin = usuarios.filter(u => u.roles && u.roles.includes('Admin')).length;
+    const usuariosRegulares = usuarios.filter(u => !u.roles || !u.roles.includes('Admin')).length;
+
+    const elemTotal = document.getElementById('totalUsuarios');
+    const elemAdmin = document.getElementById('usuariosAdmin');
+    const elemRegulares = document.getElementById('usuariosRegulares');
+
+    if (elemTotal) elemTotal.textContent = totalUsuarios;
+    if (elemAdmin) elemAdmin.textContent = usuariosAdmin;
+    if (elemRegulares) elemRegulares.textContent = usuariosRegulares;
+}
+
+// ============================================
+// ABRIR MODAL USUARIO
+// ============================================
+function abrirModalUsuario(usuarioId = null) {
+    const modal = document.getElementById('modalUsuario');
+    const form = document.getElementById('formUsuario');
+    const title = document.getElementById('modalUsuarioTitle');
+    const passwordInput = document.getElementById('usuarioPassword');
+
+    form.reset();
+    document.getElementById('usuarioId').value = '';
+
+    if (usuarioId) {
+        const usuario = usuarios.find(u => u.id === usuarioId);
+        if (usuario) {
+            title.textContent = 'Editar Usuario';
+            document.getElementById('usuarioId').value = usuario.id;
+            document.getElementById('usuarioUsername').value = usuario.userName;
+            document.getElementById('usuarioEmail').value = usuario.email;
+            document.getElementById('usuarioRole').value = usuario.roles && usuario.roles.length > 0 ? usuario.roles[0] : 'User';
+            passwordInput.removeAttribute('required');
+            passwordInput.placeholder = 'Dejar en blanco para mantener actual';
+        }
+    } else {
+        title.textContent = 'Nuevo Usuario';
+        passwordInput.setAttribute('required', 'required');
+        passwordInput.placeholder = 'Mínimo 10 caracteres';
+    }
+
+    modal.style.display = 'flex';
+}
+
+// ============================================
+// CERRAR MODAL USUARIO
+// ============================================
+function cerrarModalUsuario() {
+    const modal = document.getElementById('modalUsuario');
+    modal.style.display = 'none';
+}
+
+// ============================================
+// GUARDAR USUARIO
+// ============================================
+async function guardarUsuario(e) {
+    e.preventDefault();
+
+    const usuarioId = document.getElementById('usuarioId').value;
+    const userData = {
+        username: document.getElementById('usuarioUsername').value.trim(),
+        email: document.getElementById('usuarioEmail').value.trim(),
+        password: document.getElementById('usuarioPassword').value,
+        role: document.getElementById('usuarioRole').value
+    };
+
+    // Validaciones frontend
+    if (!userData.username || !userData.email || !userData.role) {
+        alert('Por favor complete todos los campos requeridos');
+        return;
+    }
+
+    if (!usuarioId && !userData.password) {
+        alert('La contraseña es requerida para nuevos usuarios');
+        return;
+    }
+
+    // Mostrar en consola lo que estamos enviando
+    console.log('=== DATOS QUE SE ENVIARÁN ===');
+    console.log('Username:', userData.username);
+    console.log('Email:', userData.email);
+    console.log('Password length:', userData.password.length);
+    console.log('Role:', userData.role);
+    console.log('JSON completo:', JSON.stringify(userData));
+
+    try {
+        const url = usuarioId ? `/api/users/${usuarioId}` : '/api/users';
+        const method = usuarioId ? 'PUT' : 'POST';
+
+        console.log(`Enviando ${method} a ${url}`);
+
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData)
+        });
+
+        console.log('Status de respuesta:', response.status);
+        console.log('Response OK:', response.ok);
+
+        // Obtener el cuerpo de la respuesta
+        const responseText = await response.text();
+        console.log('Respuesta del servidor (texto):', responseText);
+
+        if (!response.ok) {
+            let errorMessage = 'Error al guardar usuario';
+            let errorDetails = [];
+
+            try {
+                const errorData = JSON.parse(responseText);
+                console.log('Error parseado:', errorData);
+
+                // Capturar todos los posibles formatos de error
+                if (errorData.errors) {
+                    if (Array.isArray(errorData.errors)) {
+                        errorDetails = errorData.errors;
+                    } else if (typeof errorData.errors === 'object') {
+                        // Errores de validación de ASP.NET
+                        errorDetails = Object.values(errorData.errors).flat();
+                    }
+                }
+
+                if (errorData.message || errorData.Message) {
+                    errorMessage = errorData.message || errorData.Message;
+                }
+
+                if (errorData.title) {
+                    errorMessage = errorData.title;
+                }
+
+            } catch (parseError) {
+                console.error('Error parseando JSON:', parseError);
+                errorDetails = [responseText];
+            }
+
+            // Mostrar mensaje completo
+            const fullMessage = errorDetails.length > 0
+                ? `${errorMessage}\n\nDetalles:\n${errorDetails.join('\n')}`
+                : errorMessage;
+
+            alert(`❌ ERROR AL GUARDAR USUARIO\n\n${fullMessage}`);
+            throw new Error(fullMessage);
+        }
+
+        // Éxito
+        const result = JSON.parse(responseText);
+        console.log('✅ Usuario guardado exitosamente:', result);
+
+        alert(usuarioId ? 'Usuario actualizado exitosamente' : 'Usuario creado exitosamente');
+        cerrarModalUsuario();
+        await cargarUsuarios();
+
+    } catch (error) {
+        console.error('❌ Error completo:', error);
+    }
+}
+
+// ============================================
+// EDITAR USUARIO
+// ============================================
+function editarUsuario(usuarioId) {
+    abrirModalUsuario(usuarioId);
+}
+
+// ============================================
+// ELIMINAR USUARIO
+// ============================================
+async function eliminarUsuario(usuarioId) {
+    const usuario = usuarios.find(u => u.id === usuarioId);
+    if (!usuario) {
+        alert('Usuario no encontrado');
+        return;
+    }
+
+    const mensaje = `¿Está seguro de eliminar este usuario?
+
+Usuario: ${usuario.userName}
+Email: ${usuario.email}
+Rol: ${usuario.roles && usuario.roles.length > 0 ? usuario.roles[0] : 'User'}
+
+Esta acción no se puede deshacer.`;
+
+    if (!confirm(mensaje)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/users/${usuarioId}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || errorData.Message || 'Error al eliminar usuario');
+        }
+
+        alert('Usuario eliminado exitosamente');
+        await cargarUsuarios();
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al eliminar usuario: ' + error.message);
+    }
+}
+
+// ============================================
+// MODIFICAR FUNCIÓN inicializarApp EXISTENTE
+// Agregar estas líneas al final de la función
+// ============================================
+
+// En tu función inicializarApp(), agregar:
+// inicializarEventosUsuarios();
+// Si estamos en la vista de usuarios, cargar usuarios
+// if (window.location.hash === '#users') {
+//     cargarUsuarios();
+// }
+
+// También agregar en el showView cuando sea 'users':
+// if (viewId === 'users') {
+//     setTimeout(() => {
+//         cargarUsuarios();
+//     }, 100);
+// }

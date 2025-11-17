@@ -407,8 +407,270 @@ app.MapPost("/admin/force-create-user", async (UserManager<AppUser> userManager)
     return Results.BadRequest(new { Message = "Error al crear usuario", Errors = result.Errors.Select(e => e.Description) });
 });
 
+#region User Management
+// Obtener todos los usuarios
+app.MapGet("/api/users", async (UserManager<AppUser> userManager) =>
+{
+    try
+    {
+        var users = userManager.Users.ToList();
+        var usersWithRoles = new List<object>();
+
+        foreach (var user in users)
+        {
+            var roles = await userManager.GetRolesAsync(user);
+            usersWithRoles.Add(new
+            {
+                id = user.Id,
+                userName = user.UserName,
+                email = user.Email,
+                emailConfirmed = user.EmailConfirmed,
+                roles = roles
+            });
+        }
+
+        return Results.Ok(usersWithRoles);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error al obtener usuarios: {ex.Message}");
+    }
+});
+
+// Crear nuevo usuario
+app.MapPost("/api/users", async (CreateUserDto dto, UserManager<AppUser> userManager, RoleManager<IdentityRole> roleManager) =>
+{
+    try
+    {
+        // Validar que el rol existe
+        if (!await roleManager.RoleExistsAsync(dto.Role))
+        {
+            return Results.BadRequest(new { Message = $"El rol '{dto.Role}' no existe" });
+        }
+
+        // Verificar si el usuario ya existe
+        var existingUser = await userManager.FindByNameAsync(dto.Username);
+        if (existingUser != null)
+        {
+            return Results.BadRequest(new { Message = "El nombre de usuario ya está en uso" });
+        }
+
+        var existingEmail = await userManager.FindByEmailAsync(dto.Email);
+        if (existingEmail != null)
+        {
+            return Results.BadRequest(new { Message = "El email ya está registrado" });
+        }
+
+        // Crear el usuario
+        var newUser = new AppUser
+        {
+            UserName = dto.Username,
+            Email = dto.Email,
+            EmailConfirmed = true
+        };
+
+        var result = await userManager.CreateAsync(newUser, dto.Password);
+
+        if (!result.Succeeded)
+        {
+            return Results.BadRequest(new
+            {
+                Message = "Error al crear usuario",
+                Errors = result.Errors.Select(e => e.Description)
+            });
+        }
+
+        // Asignar rol
+        var roleResult = await userManager.AddToRoleAsync(newUser, dto.Role);
+        if (!roleResult.Succeeded)
+        {
+            // Si falla asignar el rol, eliminar el usuario creado
+            await userManager.DeleteAsync(newUser);
+            return Results.BadRequest(new
+            {
+                Message = "Error al asignar rol al usuario",
+                Errors = roleResult.Errors.Select(e => e.Description)
+            });
+        }
+
+        var roles = await userManager.GetRolesAsync(newUser);
+
+        return Results.Created($"/api/users/{newUser.Id}", new
+        {
+            id = newUser.Id,
+            userName = newUser.UserName,
+            email = newUser.Email,
+            emailConfirmed = newUser.EmailConfirmed,
+            roles = roles
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error al crear usuario: {ex.Message}");
+    }
+});
+
+// Actualizar usuario
+app.MapPut("/api/users/{id}", async (string id, UpdateUserDto dto, UserManager<AppUser> userManager, RoleManager<IdentityRole> roleManager) =>
+{
+    try
+    {
+        var user = await userManager.FindByIdAsync(id);
+        if (user == null)
+        {
+            return Results.NotFound(new { Message = "Usuario no encontrado" });
+        }
+
+        // Actualizar datos básicos
+        user.Email = dto.Email;
+        user.UserName = dto.Username;
+
+        var updateResult = await userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+        {
+            return Results.BadRequest(new
+            {
+                Message = "Error al actualizar usuario",
+                Errors = updateResult.Errors.Select(e => e.Description)
+            });
+        }
+
+        // Actualizar contraseña si se proporcionó
+        if (!string.IsNullOrEmpty(dto.Password))
+        {
+            var token = await userManager.GeneratePasswordResetTokenAsync(user);
+            var passwordResult = await userManager.ResetPasswordAsync(user, token, dto.Password);
+
+            if (!passwordResult.Succeeded)
+            {
+                return Results.BadRequest(new
+                {
+                    Message = "Error al actualizar contraseña",
+                    Errors = passwordResult.Errors.Select(e => e.Description)
+                });
+            }
+        }
+
+        // Actualizar rol si cambió
+        var currentRoles = await userManager.GetRolesAsync(user);
+        if (!currentRoles.Contains(dto.Role))
+        {
+            // Validar que el nuevo rol existe
+            if (!await roleManager.RoleExistsAsync(dto.Role))
+            {
+                return Results.BadRequest(new { Message = $"El rol '{dto.Role}' no existe" });
+            }
+
+            // Remover roles actuales
+            if (currentRoles.Any())
+            {
+                await userManager.RemoveFromRolesAsync(user, currentRoles);
+            }
+
+            // Agregar nuevo rol
+            var roleResult = await userManager.AddToRoleAsync(user, dto.Role);
+            if (!roleResult.Succeeded)
+            {
+                return Results.BadRequest(new
+                {
+                    Message = "Error al actualizar rol",
+                    Errors = roleResult.Errors.Select(e => e.Description)
+                });
+            }
+        }
+
+        var roles = await userManager.GetRolesAsync(user);
+
+        return Results.Ok(new
+        {
+            id = user.Id,
+            userName = user.UserName,
+            email = user.Email,
+            emailConfirmed = user.EmailConfirmed,
+            roles = roles
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error al actualizar usuario: {ex.Message}");
+    }
+});
+
+// Eliminar usuario
+app.MapDelete("/api/users/{id}", async (string id, UserManager<AppUser> userManager) =>
+{
+    try
+    {
+        var user = await userManager.FindByIdAsync(id);
+        if (user == null)
+        {
+            return Results.NotFound(new { Message = "Usuario no encontrado" });
+        }
+
+        // Prevenir eliminar el último admin
+        var roles = await userManager.GetRolesAsync(user);
+        if (roles.Contains("Admin"))
+        {
+            var allAdmins = await userManager.GetUsersInRoleAsync("Admin");
+            if (allAdmins.Count <= 1)
+            {
+                return Results.BadRequest(new { Message = "No se puede eliminar el último administrador del sistema" });
+            }
+        }
+
+        var result = await userManager.DeleteAsync(user);
+
+        if (!result.Succeeded)
+        {
+            return Results.BadRequest(new
+            {
+                Message = "Error al eliminar usuario",
+                Errors = result.Errors.Select(e => e.Description)
+            });
+        }
+
+        return Results.Ok(new { Message = "Usuario eliminado exitosamente" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error al eliminar usuario: {ex.Message}");
+    }
+});
+
+// Obtener usuario por ID
+app.MapGet("/api/users/{id}", async (string id, UserManager<AppUser> userManager) =>
+{
+    try
+    {
+        var user = await userManager.FindByIdAsync(id);
+        if (user == null)
+        {
+            return Results.NotFound(new { Message = "Usuario no encontrado" });
+        }
+
+        var roles = await userManager.GetRolesAsync(user);
+
+        return Results.Ok(new
+        {
+            id = user.Id,
+            userName = user.UserName,
+            email = user.Email,
+            emailConfirmed = user.EmailConfirmed,
+            roles = roles
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error al obtener usuario: {ex.Message}");
+    }
+});
+#endregion
+
 app.Run();
 
 public record UserLogin(string Username, string Password);
 public record ForgotPasswordDto(string Email);
 public record ResetPasswordDto(string Email, string Token, string NewPassword);
+// DTOs para User Management
+public record CreateUserDto(string Username, string Email, string Password, string Role);
+public record UpdateUserDto(string Username, string Email, string? Password, string Role);
