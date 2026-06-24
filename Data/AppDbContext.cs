@@ -1,9 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using InventarioApi.Models;
 
 namespace InventarioApi.Data;
 
-public class AppDbContext : DbContext
+public class AppDbContext : IdentityDbContext<AppUser>
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -14,7 +15,10 @@ public class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
+        base.OnModelCreating(mb); // IMPORTANTE para Identity
+
         // Precisión para dinero/cantidades
+        mb.Entity<Product>().Property(p => p.PurchasePrice).HasColumnType("decimal(18,2)");
         mb.Entity<Product>().Property(p => p.UnitPrice).HasColumnType("decimal(18,2)");
         mb.Entity<InventoryMovement>().Property(m => m.Quantity).HasColumnType("decimal(18,2)");
 
@@ -38,9 +42,17 @@ public class AppDbContext : DbContext
           .WithMany(w => w.Movements)
           .HasForeignKey(m => m.WarehouseId);
 
-        // Datos semilla mínimos
+        // Datos semilla
         mb.Entity<Category>().HasData(new Category { Id = 1, Name = "General" });
         mb.Entity<Warehouse>().HasData(new Warehouse { Id = 1, Name = "Principal", Location = "Matriz" });
-        mb.Entity<Product>().HasData(new Product { Id = 1, SKU = "P-0001", Name = "Producto demo", CategoryId = 1, UnitPrice = 100 });
+        mb.Entity<Product>().HasData(new Product
+        {
+            Id = 1,
+            SKU = "P-0001",
+            Name = "Producto demo",
+            CategoryId = 1,
+            PurchasePrice = 80,
+            UnitPrice = 100
+        });
     }
 }

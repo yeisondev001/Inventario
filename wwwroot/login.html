@@ -87,18 +87,6 @@
             margin-bottom: 10px;
         }
 
-        .logo-icon {
-            width: 60px;
-            height: 60px;
-            background: white;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 32px;
-            box-shadow: var(--shadow);
-        }
-
         .brand-subtitle {
             font-size: 24px;
             opacity: 0.95;
@@ -247,26 +235,6 @@
             display: block !important;
         }
 
-        .divider {
-            display: flex;
-            align-items: center;
-            margin: 24px 0;
-            color: #95a5a6;
-            font-size: 13px;
-        }
-
-            .divider::before,
-            .divider::after {
-                content: '';
-                flex: 1;
-                height: 1px;
-                background: #e0e0e0;
-            }
-
-            .divider span {
-                padding: 0 12px;
-            }
-
         @media (max-width: 968px) {
             .container {
                 flex-direction: column;
@@ -293,12 +261,6 @@
 
             .brand-logo {
                 font-size: 32px;
-            }
-
-            .logo-icon {
-                width: 50px;
-                height: 50px;
-                font-size: 26px;
             }
         }
     </style>
@@ -404,31 +366,22 @@
     </div>
 
     <script>
-        // STORAGE KEY
-        const STORAGE_KEY = 'shelf_login_attempts';
         const MAX_ATTEMPTS = 5;
-        const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutos
-
-        // Intervalos de actualización
+        const LOCKOUT_DURATION = 15 * 60 * 1000;
         let lockoutInterval = null;
+        let failedAttempts = {};
 
-        // Cargar intentos desde memoria (simulación de persistencia)
         function loadAttempts() {
             try {
-                const data = window.failedAttemptsStore || {};
-                return data;
+                return window.failedAttemptsStore || {};
             } catch (e) {
                 return {};
             }
         }
 
-        // Guardar intentos en memoria (simulación de persistencia)
         function saveAttempts(data) {
             window.failedAttemptsStore = data;
         }
-
-        // Inicializar datos
-        let failedAttempts = loadAttempts();
 
         function showLogin() {
             toggle('view-login');
@@ -480,7 +433,6 @@
             const username = document.getElementById('username').value.trim();
             const loginBtn = document.getElementById('login-btn');
 
-            // Limpiar intervalo anterior
             if (lockoutInterval) {
                 clearInterval(lockoutInterval);
                 lockoutInterval = null;
@@ -494,13 +446,11 @@
                     const elapsed = now - lockoutTime;
 
                     if (elapsed < LOCKOUT_DURATION) {
-                        // Todavía bloqueado - actualizar cada segundo
                         loginBtn.disabled = true;
 
                         const updateTimer = () => {
                             const currentElapsed = Date.now() - lockoutTime;
                             if (currentElapsed >= LOCKOUT_DURATION) {
-                                // Bloqueo expirado
                                 failedAttempts[username] = { attempts: 0, lockoutTime: null };
                                 saveAttempts(failedAttempts);
                                 loginBtn.disabled = false;
@@ -510,17 +460,16 @@
                             } else {
                                 const remaining = LOCKOUT_DURATION - currentElapsed;
                                 showMessage('msg',
-                                    `Su cuenta ha sido bloqueada temporalmente debido a múltiples intentos fallidos. Tiempo restante: ${formatTime(remaining)}. Por favor contacta al administrador si necesitas asistencia inmediata.`,
+                                    `Su cuenta ha sido bloqueada temporalmente. Tiempo restante: ${formatTime(remaining)}`,
                                     false
                                 );
                             }
                         };
 
-                        updateTimer(); // Llamar inmediatamente
+                        updateTimer();
                         lockoutInterval = setInterval(updateTimer, 1000);
                         return true;
                     } else {
-                        // Bloqueo expirado
                         failedAttempts[username] = { attempts: 0, lockoutTime: null };
                         saveAttempts(failedAttempts);
                         loginBtn.disabled = false;
@@ -536,53 +485,71 @@
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value.trim();
 
+            console.log('🔐 Intentando login con:', username);
+
             if (!username || !password) {
                 showMessage('msg', 'Por favor completa todos los campos', false);
                 return;
             }
 
-            // Verificar estado de bloqueo
             if (checkLockoutStatus()) {
                 return;
             }
 
-            const r = await fetch('/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
+            try {
+                const r = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
 
-            if (r.ok) {
-                // Resetear intentos en login exitoso
-                failedAttempts[username] = { attempts: 0, lockoutTime: null };
-                saveAttempts(failedAttempts);
-                showMessage('msg', 'Inicio de sesión exitoso. Redirigiendo...', true);
-                setTimeout(() => window.location.href = 'FormularioInventario/formularioDeInventario.html', 1000);
-            } else {
-                // Incrementar intentos fallidos
-                if (!failedAttempts[username]) {
+                console.log('📡 Respuesta del servidor - Status:', r.status);
+
+                if (r.ok) {
                     failedAttempts[username] = { attempts: 0, lockoutTime: null };
-                }
-                failedAttempts[username].attempts += 1;
+                    saveAttempts(failedAttempts);
 
-                if (failedAttempts[username].attempts >= MAX_ATTEMPTS) {
-                    failedAttempts[username].lockoutTime = Date.now();
-                    saveAttempts(failedAttempts);
-                    checkLockoutStatus(); // Activar el temporizador
+                    const data = await r.json();
+                    console.log('✅ Login exitoso - Datos recibidos:', data);
+                    console.log('👤 Usuario:', data.username);
+                    console.log('🎭 Rol:', data.role);
+                    console.log('🔗 Redirección a:', data.redirectUrl);
+
+                    showMessage('msg', `Bienvenido ${data.username} (${data.role}). Redirigiendo...`, true);
+
+                    setTimeout(() => {
+                        console.log('🚀 Redirigiendo a:', data.redirectUrl);
+                        window.location.href = data.redirectUrl;
+                    }, 1000);
                 } else {
-                    saveAttempts(failedAttempts);
-                    const remainingAttempts = MAX_ATTEMPTS - failedAttempts[username].attempts;
-                    showMessage('msg',
-                        `Credenciales incorrectas. Le quedan ${remainingAttempts} ${remainingAttempts === 1 ? 'intento' : 'intentos'} antes de que la cuenta sea bloqueada.`,
-                        false
-                    );
+                    console.log('❌ Login fallido - Status:', r.status);
+
+                    if (!failedAttempts[username]) {
+                        failedAttempts[username] = { attempts: 0, lockoutTime: null };
+                    }
+                    failedAttempts[username].attempts += 1;
+
+                    if (failedAttempts[username].attempts >= MAX_ATTEMPTS) {
+                        failedAttempts[username].lockoutTime = Date.now();
+                        saveAttempts(failedAttempts);
+                        checkLockoutStatus();
+                    } else {
+                        saveAttempts(failedAttempts);
+                        const remainingAttempts = MAX_ATTEMPTS - failedAttempts[username].attempts;
+                        showMessage('msg',
+                            `Credenciales incorrectas. Le quedan ${remainingAttempts} ${remainingAttempts === 1 ? 'intento' : 'intentos'}`,
+                            false
+                        );
+                    }
                 }
+            } catch (error) {
+                console.error('💥 Error en login:', error);
+                showMessage('msg', 'Error de conexión con el servidor', false);
             }
         }
 
         async function forgot() {
             const email = document.getElementById('email').value.trim();
-          
 
             if (!email) {
                 showMessage('msg-forgot', 'Por favor ingresa tu correo electrónico', false);
@@ -614,7 +581,7 @@
             const email = sessionStorage.getItem('resetEmail') || '';
 
             if (!email) {
-                showMessage('msg-reset', 'Email no encontrado. Vuelve al formulario de recuperar y envía tu correo otra vez.', false);
+                showMessage('msg-reset', 'Email no encontrado. Vuelve al formulario de recuperar.', false);
                 return;
             }
 
@@ -640,7 +607,6 @@
                 showMessage('msg-reset', 'Contraseña actualizada exitosamente. Redirigiendo...', true);
                 setTimeout(() => showLogin(), 2000);
             } else {
-        
                 try {
                     const data = JSON.parse(text);
                     showMessage('msg-reset', (data?.message || data?.Errors || text), false);
@@ -650,7 +616,6 @@
             }
         }
 
-        // Permitir login con Enter
         document.getElementById('password')?.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') login();
         });
@@ -658,16 +623,13 @@
             if (e.key === 'Enter') login();
         });
 
-        // Verificar estado cuando cambia el usuario
         document.getElementById('username')?.addEventListener('input', checkLockoutStatus);
 
-        // Verificar al cargar la página
         window.addEventListener('load', () => {
             failedAttempts = loadAttempts();
             checkLockoutStatus();
         });
 
-        // Limpiar intervalo al salir
         window.addEventListener('beforeunload', () => {
             if (lockoutInterval) {
                 clearInterval(lockoutInterval);
