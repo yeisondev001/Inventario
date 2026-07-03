@@ -1,19 +1,19 @@
 using InventarioApi.Data;
 using InventarioApi.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configurar WebRootPath para que apunte a la carpeta wwwroot del proyecto (no del bin)
-var projectRoot = Directory.GetParent(builder.Environment.ContentRootPath)?.Parent?.Parent?.FullName;
-if (projectRoot != null)
-{
-    builder.Environment.WebRootPath = Path.Combine(projectRoot, "wwwroot");
-}
+// Carga overrides locales sin commitear (gitignored). En produccion usar variables de entorno.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 
 // Configurar DbContext con SQL Server
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -41,6 +41,17 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
+// JWT
+var jwtSigningKey = builder.Configuration["JWT:SigningKey"];
+if (string.IsNullOrWhiteSpace(jwtSigningKey) || jwtSigningKey.Length < 32)
+{
+    throw new InvalidOperationException(
+        "JWT:SigningKey no configurada o demasiado corta (min 32 chars). " +
+        "Configurala via variable de entorno JWT__SigningKey o appsettings.Local.json.");
+}
+var jwtIssuer = builder.Configuration["JWT:Issuer"] ?? "InventarioApi";
+var jwtAudience = builder.Configuration["JWT:Audience"] ?? "InventarioApi";
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme =
@@ -53,13 +64,11 @@ builder.Services.AddAuthentication(options =>
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
-        ValidIssuer = builder.Configuration["JWT:Issuer"],
+        ValidIssuer = jwtIssuer,
         ValidateAudience = true,
-        ValidAudience = builder.Configuration["JWT:Audience"],
+        ValidAudience = jwtAudience,
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(
-            System.Text.Encoding.UTF8.GetBytes(builder.Configuration["JWT:SigningKey"]!)
-        )
+        IssuerSigningKey = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwtSigningKey))
     };
 });
 
@@ -83,147 +92,85 @@ async Task CreateDefaultUsers(IServiceProvider services)
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
     Console.WriteLine("========================================");
-    Console.WriteLine("INICIANDO CREACIÓN DE USUARIOS Y ROLES");
+    Console.WriteLine("INICIANDO CREACION DE USUARIOS Y ROLES");
     Console.WriteLine("========================================");
 
     try
     {
-        // Crear roles si no existen
-        var roles = new[] { "Admin", "User" };
+        // Crear roles: Admin (SuperAdmin/SaaS owner), AdminTienda, User
+        var roles = new[] { "Admin", "AdminTienda", "User" };
         foreach (var roleName in roles)
         {
             var roleExists = await roleManager.RoleExistsAsync(roleName);
             if (!roleExists)
             {
-                var roleResult = await roleManager.CreateAsync(new IdentityRole(roleName));
-                if (roleResult.Succeeded)
-                {
-                    Console.WriteLine($"✅ Rol '{roleName}' creado exitosamente");
-                }
-                else
-                {
-                    Console.WriteLine($"❌ Error creando rol '{roleName}': {string.Join(", ", roleResult.Errors.Select(e => e.Description))}");
-                }
-            }
-            else
-            {
-                Console.WriteLine($"ℹ️  Rol '{roleName}' ya existe");
+                await roleManager.CreateAsync(new IdentityRole(roleName));
+                Console.WriteLine($"Rol '{roleName}' creado");
             }
         }
 
-        // Crear usuario ADMIN
-        Console.WriteLine("\n--- Creando usuario ADMIN ---");
+        // Crear SuperAdmin (tu, el dueno del SaaS) - sin tenant, accede a todo
         var adminUser = new AppUser
         {
             UserName = "admin",
             Email = "admin@inventario.com",
-            EmailConfirmed = true
+            EmailConfirmed = true,
+            TenantId = null
         };
 
         var existingAdmin = await userManager.FindByNameAsync(adminUser.UserName);
         if (existingAdmin == null)
         {
-            var adminResult = await userManager.CreateAsync(adminUser, "Admin1234!");
+            // Generar password aleatorio seguro y mostrarlo UNA sola vez
+            var password = GenerateRandomPassword();
+            var adminResult = await userManager.CreateAsync(adminUser, password);
             if (adminResult.Succeeded)
             {
-                var addRoleResult = await userManager.AddToRoleAsync(adminUser, "Admin");
-                if (addRoleResult.Succeeded)
-                {
-                    Console.WriteLine("✅ Usuario 'admin' creado exitosamente con rol Admin");
-                    Console.WriteLine($"   📧 Email: {adminUser.Email}");
-                    Console.WriteLine($"   🔑 Password: Admin1234!");
-                }
-                else
-                {
-                    Console.WriteLine($"⚠️  Usuario 'admin' creado pero error al asignar rol: {string.Join(", ", addRoleResult.Errors.Select(e => e.Description))}");
-                }
+                await userManager.AddToRoleAsync(adminUser, "Admin");
+                Console.WriteLine("========================================");
+                Console.WriteLine("SUPERADMIN CREADO (anotalo, no se muestra de nuevo):");
+                Console.WriteLine($"  Usuario: admin");
+                Console.WriteLine($"  Password: {password}");
+                Console.WriteLine("========================================");
             }
             else
             {
-                var errors = string.Join(", ", adminResult.Errors.Select(e => e.Description));
-                Console.WriteLine($"❌ Error creando usuario admin: {errors}");
+                Console.WriteLine($"Error creando SuperAdmin: {string.Join(", ", adminResult.Errors.Select(e => e.Description))}");
             }
         }
         else
         {
-            Console.WriteLine("ℹ️  El usuario 'admin' ya existe");
-            // Verificar que tenga el rol Admin
-            var isInRole = await userManager.IsInRoleAsync(existingAdmin, "Admin");
-            if (!isInRole)
-            {
-                await userManager.AddToRoleAsync(existingAdmin, "Admin");
-                Console.WriteLine("✅ Rol 'Admin' asignado al usuario existente");
-            }
-        }
-
-        // Crear usuario normal (USER)
-        Console.WriteLine("\n--- Creando usuario USUARIO ---");
-        var normalUser = new AppUser
-        {
-            UserName = "usuario",
-            Email = "usuario@inventario.com",
-            EmailConfirmed = true
-        };
-
-        var existingUser = await userManager.FindByNameAsync(normalUser.UserName);
-        if (existingUser == null)
-        {
-            var userResult = await userManager.CreateAsync(normalUser, "User1234!");
-            if (userResult.Succeeded)
-            {
-                var addRoleResult = await userManager.AddToRoleAsync(normalUser, "User");
-                if (addRoleResult.Succeeded)
-                {
-                    Console.WriteLine("✅ Usuario 'usuario' creado exitosamente con rol User");
-                    Console.WriteLine($"   📧 Email: {normalUser.Email}");
-                    Console.WriteLine($"   🔑 Password: User1234!");
-                }
-                else
-                {
-                    Console.WriteLine($"⚠️  Usuario 'usuario' creado pero error al asignar rol: {string.Join(", ", addRoleResult.Errors.Select(e => e.Description))}");
-                }
-            }
-            else
-            {
-                var errors = string.Join(", ", userResult.Errors.Select(e => e.Description));
-                Console.WriteLine($"❌ Error creando usuario normal: {errors}");
-                Console.WriteLine("💡 Detalles de los errores:");
-                foreach (var error in userResult.Errors)
-                {
-                    Console.WriteLine($"   - {error.Code}: {error.Description}");
-                }
-            }
-        }
-        else
-        {
-            Console.WriteLine("ℹ️  El usuario 'usuario' ya existe");
-            // Verificar que tenga el rol User
-            var isInRole = await userManager.IsInRoleAsync(existingUser, "User");
-            if (!isInRole)
-            {
-                await userManager.AddToRoleAsync(existingUser, "User");
-                Console.WriteLine("✅ Rol 'User' asignado al usuario existente");
-            }
-        }
-
-        Console.WriteLine("\n========================================");
-        Console.WriteLine("RESUMEN DE USUARIOS DISPONIBLES:");
-        Console.WriteLine("========================================");
-
-        var allUsers = userManager.Users.ToList();
-        foreach (var user in allUsers)
-        {
-            var userRoles = await userManager.GetRolesAsync(user);
-            Console.WriteLine($"👤 {user.UserName} - Roles: {string.Join(", ", userRoles)}");
+            await userManager.AddToRoleAsync(existingAdmin, "Admin");
+            Console.WriteLine("SuperAdmin 'admin' ya existe");
         }
 
         Console.WriteLine("========================================\n");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"\n❌ ERROR CRÍTICO en CreateDefaultUsers: {ex.Message}");
-        Console.WriteLine($"   Stack Trace: {ex.StackTrace}");
+        Console.WriteLine($"ERROR CRITICO en CreateDefaultUsers: {ex.Message}");
     }
+}
+
+static string GenerateRandomPassword()
+{
+    const string lower = "abcdefghijklmnopqrstuvwxyz";
+    const string upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const string digit = "0123456789";
+    const string special = "!@#$%^&*";
+    var bytes = RandomNumberGenerator.GetBytes(16);
+    var chars = new[]
+    {
+        lower[bytes[0] % lower.Length],
+        upper[bytes[1] % upper.Length],
+        digit[bytes[2] % digit.Length],
+        special[bytes[3] % special.Length]
+    };
+    var all = lower + upper + digit + special;
+    var rest = new char[8];
+    for (int i = 0; i < 8; i++)
+        rest[i] = all[bytes[4 + i] % all.Length];
+    return new string(chars.Concat(rest).ToArray());
 }
 #endregion
 
@@ -232,17 +179,14 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// ⚠️ IMPORTANTE: Middleware de redirección ANTES de UseStaticFiles
 app.Use(async (context, next) =>
 {
-    // Redirigir raíz al login
     if (context.Request.Path == "/")
     {
         context.Response.Redirect("/login.html");
         return;
     }
 
-    // Redirigir el formulario viejo al login (para que elija rol)
     if (context.Request.Path == "/FormularioInventario/formularioDeInventario.html")
     {
         context.Response.Redirect("/login.html");
@@ -254,7 +198,6 @@ app.Use(async (context, next) =>
 
 app.UseStaticFiles();
 
-// Configurar Swagger
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -262,59 +205,112 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-// Mapear controladores (ProductsController se manejará automáticamente)
 app.MapControllers();
 
-// --- Minimal API Endpoints (solo los que NO están en controladores) ---
+// Helper para resolver TenantId del usuario autenticado
+static int? GetCurrentTenantId(ClaimsPrincipal user)
+{
+    var claim = user.FindFirst("TenantId");
+    return int.TryParse(claim?.Value, out var id) ? id : null;
+}
 
 #region Categories
-app.MapGet("/categories", async (AppDbContext db) =>
-    await db.Categories.AsNoTracking().ToListAsync()
-);
-
-app.MapPost("/categories", async (Category dto, AppDbContext db) =>
+app.MapGet("/categories", async (AppDbContext db, ClaimsPrincipal user) =>
 {
+    var tenantId = GetCurrentTenantId(user);
+    return await db.Categories.Where(c => c.TenantId == tenantId).AsNoTracking().ToListAsync();
+}).RequireAuthorization();
+
+app.MapPost("/categories", async (Category dto, AppDbContext db, ClaimsPrincipal user) =>
+{
+    var tenantId = GetCurrentTenantId(user);
+    if (tenantId == null) return Results.BadRequest(new { Message = "Usuario sin tenant asignado" });
+
+    dto.TenantId = tenantId.Value;
     db.Categories.Add(dto);
     await db.SaveChangesAsync();
     return Results.Created($"/categories/{dto.Id}", dto);
-});
+}).RequireAuthorization();
+
+app.MapDelete("/categories/{id}", async (int id, AppDbContext db, ClaimsPrincipal user) =>
+{
+    var tenantId = GetCurrentTenantId(user);
+    if (tenantId == null) return Results.BadRequest(new { Message = "Usuario sin tenant asignado" });
+
+    var cat = await db.Categories.FirstOrDefaultAsync(c => c.Id == id && c.TenantId == tenantId);
+    if (cat == null) return Results.NotFound(new { Message = "Categoria no encontrada" });
+
+    if (await db.Products.AnyAsync(p => p.CategoryId == id && p.TenantId == tenantId))
+        return Results.BadRequest(new { Message = "No se puede eliminar: hay productos usando esta categoria" });
+
+    db.Categories.Remove(cat);
+    await db.SaveChangesAsync();
+    return Results.Ok(new { Message = "Categoria eliminada" });
+}).RequireAuthorization();
 #endregion
 
 #region Warehouses
-app.MapGet("/warehouses", async (AppDbContext db) =>
-    await db.Warehouses.AsNoTracking().ToListAsync()
-);
-
-app.MapPost("/warehouses", async (Warehouse dto, AppDbContext db) =>
+app.MapGet("/warehouses", async (AppDbContext db, ClaimsPrincipal user) =>
 {
+    var tenantId = GetCurrentTenantId(user);
+    return await db.Warehouses.Where(w => w.TenantId == tenantId).AsNoTracking().ToListAsync();
+}).RequireAuthorization();
+
+app.MapPost("/warehouses", async (Warehouse dto, AppDbContext db, ClaimsPrincipal user) =>
+{
+    var tenantId = GetCurrentTenantId(user);
+    if (tenantId == null) return Results.BadRequest(new { Message = "Usuario sin tenant asignado" });
+
+    dto.TenantId = tenantId.Value;
     db.Warehouses.Add(dto);
     await db.SaveChangesAsync();
     return Results.Created($"/warehouses/{dto.Id}", dto);
-});
+}).RequireAuthorization();
+
+app.MapDelete("/warehouses/{id}", async (int id, AppDbContext db, ClaimsPrincipal user) =>
+{
+    var tenantId = GetCurrentTenantId(user);
+    if (tenantId == null) return Results.BadRequest(new { Message = "Usuario sin tenant asignado" });
+
+    var wh = await db.Warehouses.FirstOrDefaultAsync(w => w.Id == id && w.TenantId == tenantId);
+    if (wh == null) return Results.NotFound(new { Message = "Almacen no encontrado" });
+
+    if (await db.InventoryMovements.AnyAsync(m => m.WarehouseId == id && m.TenantId == tenantId))
+        return Results.BadRequest(new { Message = "No se puede eliminar: hay movimientos asociados a este almacen" });
+
+    db.Warehouses.Remove(wh);
+    await db.SaveChangesAsync();
+    return Results.Ok(new { Message = "Almacen eliminado" });
+}).RequireAuthorization();
 #endregion
 
 #region Movements
-app.MapGet("/movements", async (AppDbContext db) =>
-    await db.InventoryMovements
+app.MapGet("/movements", async (AppDbContext db, ClaimsPrincipal user) =>
+{
+    var tenantId = GetCurrentTenantId(user);
+    return await db.InventoryMovements
+        .Where(m => m.TenantId == tenantId)
         .Include(m => m.Product)
         .Include(m => m.Warehouse)
         .AsNoTracking()
         .OrderByDescending(m => m.MovementDate)
-        .ToListAsync()
-);
+        .ToListAsync();
+}).RequireAuthorization();
 
-app.MapPost("/movements", async (InventoryMovement dto, AppDbContext db) =>
+app.MapPost("/movements", async (InventoryMovement dto, AppDbContext db, ClaimsPrincipal user) =>
 {
-    // Validar que el producto existe
-    if (!await db.Products.AnyAsync(p => p.Id == dto.ProductId))
+    var tenantId = GetCurrentTenantId(user);
+    if (tenantId == null) return Results.BadRequest(new { Message = "Usuario sin tenant asignado" });
+
+    // Validar que el producto existe Y pertenece al mismo tenant
+    if (!await db.Products.AnyAsync(p => p.Id == dto.ProductId && p.TenantId == tenantId))
         return Results.BadRequest(new { Message = "El producto no existe" });
 
-    // Validar que el almacén existe
-    if (!await db.Warehouses.AnyAsync(w => w.Id == dto.WarehouseId))
-        return Results.BadRequest(new { Message = "El almacén no existe" });
+    if (!await db.Warehouses.AnyAsync(w => w.Id == dto.WarehouseId && w.TenantId == tenantId))
+        return Results.BadRequest(new { Message = "El almacen no existe" });
 
     var current = await db.InventoryMovements
-        .Where(m => m.ProductId == dto.ProductId)
+        .Where(m => m.ProductId == dto.ProductId && m.TenantId == tenantId)
         .SumAsync(m => m.Type == MovementType.In ? m.Quantity : -m.Quantity);
 
     var delta = dto.Type == MovementType.In ? dto.Quantity : -dto.Quantity;
@@ -322,11 +318,12 @@ app.MapPost("/movements", async (InventoryMovement dto, AppDbContext db) =>
     if (current + delta < 0)
         return Results.BadRequest(new { Message = "Stock insuficiente para realizar esta salida" });
 
+    dto.TenantId = tenantId.Value;
     db.InventoryMovements.Add(dto);
     await db.SaveChangesAsync();
 
     return Results.Created($"/movements/{dto.Id}", dto);
-});
+}).RequireAuthorization();
 #endregion
 
 #region Authentication
@@ -338,32 +335,59 @@ app.MapPost("/login", async (UserLogin login, UserManager<AppUser> userManager, 
     var result = await signInManager.CheckPasswordSignInAsync(user, login.Password, false);
     if (!result.Succeeded) return Results.Unauthorized();
 
-    // Obtener el rol del usuario
     var roles = await userManager.GetRolesAsync(user);
     var role = roles.FirstOrDefault() ?? "User";
 
-    // Determinar la ruta del dashboard según el rol
     var dashboardUrl = role == "Admin"
-        ? "/views/admin/dashboard-admin.html"     // Dashboard Admin
-        : "/views/user/dashboard-user.html";       // Dashboard User
+        ? "/views/admin/dashboard-admin.html"
+        : role == "AdminTienda"
+            ? "/views/adminTienda/dashboard-admintienda.html"
+            : "/views/user/dashboard-user.html";
+
+    var claims = new List<Claim>
+    {
+        new(JwtRegisteredClaimNames.Sub, user.Id),
+        new(JwtRegisteredClaimNames.UniqueName, user.UserName ?? ""),
+        new(ClaimTypes.NameIdentifier, user.Id),
+        new(ClaimTypes.Name, user.UserName ?? ""),
+        new(ClaimTypes.Role, role),
+        new("TenantId", user.TenantId?.ToString() ?? ""),
+        new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+    };
+
+    var creds = new SigningCredentials(
+        new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwtSigningKey)),
+        SecurityAlgorithms.HmacSha256);
+
+    var tokenObj = new JwtSecurityToken(
+        issuer: jwtIssuer,
+        audience: jwtAudience,
+        claims: claims,
+        expires: DateTime.UtcNow.AddHours(8),
+        signingCredentials: creds);
+
+    var jwt = new JwtSecurityTokenHandler().WriteToken(tokenObj);
 
     return Results.Ok(new
     {
         Message = "Login exitoso",
         Username = user.UserName,
         Role = role,
-        RedirectUrl = dashboardUrl
+        RedirectUrl = dashboardUrl,
+        Token = jwt,
+        ExpiresAt = tokenObj.ValidTo
     });
 });
 
 app.MapPost("/auth/forgot-password", async (ForgotPasswordDto dto, UserManager<AppUser> userManager) =>
 {
     var user = await userManager.FindByEmailAsync(dto.Email);
-    if (user == null)
-        return Results.BadRequest(new { Message = "Correo no registrado" });
-
-    var token = await userManager.GeneratePasswordResetTokenAsync(user);
-    return Results.Ok(new { token });
+    if (user != null)
+    {
+        var resetToken = await userManager.GeneratePasswordResetTokenAsync(user);
+        Console.WriteLine($"[DEV] Reset token para {dto.Email}: {resetToken}");
+    }
+    return Results.Ok(new { Message = "Si el correo existe, se ha enviado un enlace de recuperacion." });
 });
 
 app.MapPost("/auth/reset-password", async (ResetPasswordDto dto, UserManager<AppUser> userManager) =>
@@ -375,295 +399,205 @@ app.MapPost("/auth/reset-password", async (ResetPasswordDto dto, UserManager<App
     var result = await userManager.ResetPasswordAsync(user, dto.Token, dto.NewPassword);
 
     if (result.Succeeded)
-        return Results.Ok(new { Message = "Contraseña actualizada correctamente" });
+        return Results.Ok(new { Message = "Contrasena actualizada correctamente" });
 
     return Results.BadRequest(string.Join(", ", result.Errors.Select(e => e.Description)));
 });
 #endregion
 
-// ENDPOINT TEMPORAL PARA FORZAR CREACIÓN DE USUARIO
-app.MapPost("/admin/force-create-user", async (UserManager<AppUser> userManager) =>
+#region Tenant Management (solo Admin/SuperAdmin)
+// Listar todas las tiendas
+app.MapGet("/api/tenants", async (AppDbContext db) =>
 {
-    var normalUser = new AppUser
+    var tenants = await db.Tenants.AsNoTracking().ToListAsync();
+    return Results.Ok(tenants);
+}).RequireAuthorization(p => p.RequireRole("Admin"));
+
+// Crear nueva tienda
+app.MapPost("/api/tenants", async (CreateTenantDto dto, AppDbContext db) =>
+{
+    var tenant = new Tenant
     {
-        UserName = "usuario",
-        Email = "usuario@inventario.com",
-        EmailConfirmed = true
+        Name = dto.Name,
+        Slug = dto.Slug,
+        Active = true
+    };
+    db.Tenants.Add(tenant);
+    await db.SaveChangesAsync();
+    return Results.Created($"/api/tenants/{tenant.Id}", tenant);
+}).RequireAuthorization(p => p.RequireRole("Admin"));
+
+// Crear AdminTienda para una tienda (el cliente)
+app.MapPost("/api/tenants/{tenantId}/admins", async (
+    int tenantId,
+    CreateTenantAdminDto dto,
+    AppDbContext db,
+    UserManager<AppUser> userManager,
+    RoleManager<IdentityRole> roleManager) =>
+{
+    if (!await db.Tenants.AnyAsync(t => t.Id == tenantId))
+        return Results.NotFound(new { Message = "La tienda no existe" });
+
+    if (await userManager.FindByNameAsync(dto.Username) != null)
+        return Results.BadRequest(new { Message = "El nombre de usuario ya esta en uso" });
+
+    if (await userManager.FindByEmailAsync(dto.Email) != null)
+        return Results.BadRequest(new { Message = "El email ya esta registrado" });
+
+    var password = GenerateRandomPassword();
+    var newAdmin = new AppUser
+    {
+        UserName = dto.Username,
+        Email = dto.Email,
+        EmailConfirmed = true,
+        TenantId = tenantId
     };
 
-    var existingUser = await userManager.FindByNameAsync(normalUser.UserName);
-    if (existingUser != null)
+    var result = await userManager.CreateAsync(newAdmin, password);
+    if (!result.Succeeded)
+        return Results.BadRequest(new
+        {
+            Message = "Error al crear AdminTienda",
+            Errors = result.Errors.Select(e => e.Description)
+        });
+
+    await userManager.AddToRoleAsync(newAdmin, "AdminTienda");
+
+    return Results.Created($"/api/tenants/{tenantId}/admins/{newAdmin.Id}", new
     {
-        return Results.Ok(new { Message = "El usuario 'usuario' ya existe", User = existingUser.UserName });
-    }
+        id = newAdmin.Id,
+        userName = newAdmin.UserName,
+        email = newAdmin.Email,
+        tenantId = tenantId,
+        initialPassword = password
+    });
+}).RequireAuthorization(p => p.RequireRole("Admin"));
 
-    var result = await userManager.CreateAsync(normalUser, "User1234!");
-    if (result.Succeeded)
-    {
-        await userManager.AddToRoleAsync(normalUser, "User");
-        return Results.Ok(new { Message = "✅ Usuario 'usuario' creado exitosamente", Username = "usuario", Password = "User1234!" });
-    }
-
-    return Results.BadRequest(new { Message = "Error al crear usuario", Errors = result.Errors.Select(e => e.Description) });
-});
-
-#region User Management
-// Obtener todos los usuarios
-app.MapGet("/api/users", async (UserManager<AppUser> userManager) =>
+// Listar AdminsTienda de una tienda (solo SuperAdmin)
+app.MapGet("/api/tenants/{tenantId}/admins", async (
+    int tenantId,
+    AppDbContext db,
+    UserManager<AppUser> userManager) =>
 {
-    try
-    {
-        var users = userManager.Users.ToList();
-        var usersWithRoles = new List<object>();
+    if (!await db.Tenants.AnyAsync(t => t.Id == tenantId))
+        return Results.NotFound(new { Message = "La tienda no existe" });
 
-        foreach (var user in users)
+    var users = await userManager.Users
+        .Where(u => u.TenantId == tenantId)
+        .ToListAsync();
+
+    var list = new List<object>();
+    foreach (var u in users)
+    {
+        var roles = await userManager.GetRolesAsync(u);
+        if (roles.Contains("AdminTienda"))
         {
-            var roles = await userManager.GetRolesAsync(user);
-            usersWithRoles.Add(new
+            list.Add(new
             {
-                id = user.Id,
-                userName = user.UserName,
-                email = user.Email,
-                emailConfirmed = user.EmailConfirmed,
-                roles = roles
+                id = u.Id,
+                userName = u.UserName,
+                email = u.Email,
+                tenantId = tenantId,
+                tenantName = (await db.Tenants.FindAsync(tenantId))?.Name
             });
         }
-
-        return Results.Ok(usersWithRoles);
     }
-    catch (Exception ex)
-    {
-        return Results.Problem($"Error al obtener usuarios: {ex.Message}");
-    }
-});
+    return Results.Ok(list);
+}).RequireAuthorization(p => p.RequireRole("Admin"));
+#endregion
 
-// Crear nuevo usuario
-app.MapPost("/api/users", async (CreateUserDto dto, UserManager<AppUser> userManager, RoleManager<IdentityRole> roleManager) =>
+#region Tenant User Management (AdminTienda gestiona sus propios empleados)
+// Listar usuarios de su tienda
+app.MapGet("/api/tenant/users", async (AppDbContext db, UserManager<AppUser> userManager, ClaimsPrincipal user) =>
 {
-    try
+    var tenantId = GetCurrentTenantId(user);
+    var users = await userManager.Users
+        .Where(u => u.TenantId == tenantId)
+        .ToListAsync();
+
+    var list = new List<object>();
+    foreach (var u in users)
     {
-        // Validar que el rol existe
-        if (!await roleManager.RoleExistsAsync(dto.Role))
+        var roles = await userManager.GetRolesAsync(u);
+        list.Add(new
         {
-            return Results.BadRequest(new { Message = $"El rol '{dto.Role}' no existe" });
-        }
-
-        // Verificar si el usuario ya existe
-        var existingUser = await userManager.FindByNameAsync(dto.Username);
-        if (existingUser != null)
-        {
-            return Results.BadRequest(new { Message = "El nombre de usuario ya está en uso" });
-        }
-
-        var existingEmail = await userManager.FindByEmailAsync(dto.Email);
-        if (existingEmail != null)
-        {
-            return Results.BadRequest(new { Message = "El email ya está registrado" });
-        }
-
-        // Crear el usuario
-        var newUser = new AppUser
-        {
-            UserName = dto.Username,
-            Email = dto.Email,
-            EmailConfirmed = true
-        };
-
-        var result = await userManager.CreateAsync(newUser, dto.Password);
-
-        if (!result.Succeeded)
-        {
-            return Results.BadRequest(new
-            {
-                Message = "Error al crear usuario",
-                Errors = result.Errors.Select(e => e.Description)
-            });
-        }
-
-        // Asignar rol
-        var roleResult = await userManager.AddToRoleAsync(newUser, dto.Role);
-        if (!roleResult.Succeeded)
-        {
-            // Si falla asignar el rol, eliminar el usuario creado
-            await userManager.DeleteAsync(newUser);
-            return Results.BadRequest(new
-            {
-                Message = "Error al asignar rol al usuario",
-                Errors = roleResult.Errors.Select(e => e.Description)
-            });
-        }
-
-        var roles = await userManager.GetRolesAsync(newUser);
-
-        return Results.Created($"/api/users/{newUser.Id}", new
-        {
-            id = newUser.Id,
-            userName = newUser.UserName,
-            email = newUser.Email,
-            emailConfirmed = newUser.EmailConfirmed,
+            id = u.Id,
+            userName = u.UserName,
+            email = u.Email,
+            emailConfirmed = u.EmailConfirmed,
             roles = roles
         });
     }
-    catch (Exception ex)
-    {
-        return Results.Problem($"Error al crear usuario: {ex.Message}");
-    }
-});
+    return Results.Ok(list);
+}).RequireAuthorization(p => p.RequireRole("AdminTienda"));
 
-// Actualizar usuario
-app.MapPut("/api/users/{id}", async (string id, UpdateUserDto dto, UserManager<AppUser> userManager, RoleManager<IdentityRole> roleManager) =>
+// Crear empleado (User) dentro de su tienda
+app.MapPost("/api/tenant/users", async (
+    CreateUserDto dto,
+    AppDbContext db,
+    UserManager<AppUser> userManager,
+    ClaimsPrincipal user) =>
 {
-    try
+    var tenantId = GetCurrentTenantId(user);
+    if (tenantId == null) return Results.BadRequest(new { Message = "Sin tenant" });
+
+    if (await userManager.FindByNameAsync(dto.Username) != null)
+        return Results.BadRequest(new { Message = "El nombre de usuario ya esta en uso" });
+
+    if (await userManager.FindByEmailAsync(dto.Email) != null)
+        return Results.BadRequest(new { Message = "El email ya esta registrado" });
+
+    var newUser = new AppUser
     {
-        var user = await userManager.FindByIdAsync(id);
-        if (user == null)
+        UserName = dto.Username,
+        Email = dto.Email,
+        EmailConfirmed = true,
+        TenantId = tenantId
+    };
+
+    var result = await userManager.CreateAsync(newUser, dto.Password);
+    if (!result.Succeeded)
+        return Results.BadRequest(new
         {
-            return Results.NotFound(new { Message = "Usuario no encontrado" });
-        }
-
-        // Actualizar datos básicos
-        user.Email = dto.Email;
-        user.UserName = dto.Username;
-
-        var updateResult = await userManager.UpdateAsync(user);
-        if (!updateResult.Succeeded)
-        {
-            return Results.BadRequest(new
-            {
-                Message = "Error al actualizar usuario",
-                Errors = updateResult.Errors.Select(e => e.Description)
-            });
-        }
-
-        // Actualizar contraseña si se proporcionó
-        if (!string.IsNullOrEmpty(dto.Password))
-        {
-            var token = await userManager.GeneratePasswordResetTokenAsync(user);
-            var passwordResult = await userManager.ResetPasswordAsync(user, token, dto.Password);
-
-            if (!passwordResult.Succeeded)
-            {
-                return Results.BadRequest(new
-                {
-                    Message = "Error al actualizar contraseña",
-                    Errors = passwordResult.Errors.Select(e => e.Description)
-                });
-            }
-        }
-
-        // Actualizar rol si cambió
-        var currentRoles = await userManager.GetRolesAsync(user);
-        if (!currentRoles.Contains(dto.Role))
-        {
-            // Validar que el nuevo rol existe
-            if (!await roleManager.RoleExistsAsync(dto.Role))
-            {
-                return Results.BadRequest(new { Message = $"El rol '{dto.Role}' no existe" });
-            }
-
-            // Remover roles actuales
-            if (currentRoles.Any())
-            {
-                await userManager.RemoveFromRolesAsync(user, currentRoles);
-            }
-
-            // Agregar nuevo rol
-            var roleResult = await userManager.AddToRoleAsync(user, dto.Role);
-            if (!roleResult.Succeeded)
-            {
-                return Results.BadRequest(new
-                {
-                    Message = "Error al actualizar rol",
-                    Errors = roleResult.Errors.Select(e => e.Description)
-                });
-            }
-        }
-
-        var roles = await userManager.GetRolesAsync(user);
-
-        return Results.Ok(new
-        {
-            id = user.Id,
-            userName = user.UserName,
-            email = user.Email,
-            emailConfirmed = user.EmailConfirmed,
-            roles = roles
+            Message = "Error al crear usuario",
+            Errors = result.Errors.Select(e => e.Description)
         });
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem($"Error al actualizar usuario: {ex.Message}");
-    }
-});
 
-// Eliminar usuario
-app.MapDelete("/api/users/{id}", async (string id, UserManager<AppUser> userManager) =>
+    await userManager.AddToRoleAsync(newUser, "User");
+
+    return Results.Created($"/api/tenant/users/{newUser.Id}", new
+    {
+        id = newUser.Id,
+        userName = newUser.UserName,
+        email = newUser.Email
+    });
+}).RequireAuthorization(p => p.RequireRole("AdminTienda"));
+
+// Eliminar empleado de su tienda
+app.MapDelete("/api/tenant/users/{id}", async (
+    string id,
+    UserManager<AppUser> userManager,
+    ClaimsPrincipal user) =>
 {
-    try
-    {
-        var user = await userManager.FindByIdAsync(id);
-        if (user == null)
+    var tenantId = GetCurrentTenantId(user);
+
+    var target = await userManager.FindByIdAsync(id);
+    if (target == null || target.TenantId != tenantId)
+        return Results.NotFound(new { Message = "Usuario no encontrado en tu tienda" });
+
+    if (await userManager.IsInRoleAsync(target, "AdminTienda"))
+        return Results.BadRequest(new { Message = "No puedes eliminar a un AdminTienda" });
+
+    var result = await userManager.DeleteAsync(target);
+    if (!result.Succeeded)
+        return Results.BadRequest(new
         {
-            return Results.NotFound(new { Message = "Usuario no encontrado" });
-        }
-
-        // Prevenir eliminar el último admin
-        var roles = await userManager.GetRolesAsync(user);
-        if (roles.Contains("Admin"))
-        {
-            var allAdmins = await userManager.GetUsersInRoleAsync("Admin");
-            if (allAdmins.Count <= 1)
-            {
-                return Results.BadRequest(new { Message = "No se puede eliminar el último administrador del sistema" });
-            }
-        }
-
-        var result = await userManager.DeleteAsync(user);
-
-        if (!result.Succeeded)
-        {
-            return Results.BadRequest(new
-            {
-                Message = "Error al eliminar usuario",
-                Errors = result.Errors.Select(e => e.Description)
-            });
-        }
-
-        return Results.Ok(new { Message = "Usuario eliminado exitosamente" });
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem($"Error al eliminar usuario: {ex.Message}");
-    }
-});
-
-// Obtener usuario por ID
-app.MapGet("/api/users/{id}", async (string id, UserManager<AppUser> userManager) =>
-{
-    try
-    {
-        var user = await userManager.FindByIdAsync(id);
-        if (user == null)
-        {
-            return Results.NotFound(new { Message = "Usuario no encontrado" });
-        }
-
-        var roles = await userManager.GetRolesAsync(user);
-
-        return Results.Ok(new
-        {
-            id = user.Id,
-            userName = user.UserName,
-            email = user.Email,
-            emailConfirmed = user.EmailConfirmed,
-            roles = roles
+            Message = "Error al eliminar usuario",
+            Errors = result.Errors.Select(e => e.Description)
         });
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem($"Error al obtener usuario: {ex.Message}");
-    }
-});
+
+    return Results.Ok(new { Message = "Usuario eliminado exitosamente" });
+}).RequireAuthorization(p => p.RequireRole("AdminTienda"));
 #endregion
 
 app.Run();
@@ -671,6 +605,7 @@ app.Run();
 public record UserLogin(string Username, string Password);
 public record ForgotPasswordDto(string Email);
 public record ResetPasswordDto(string Email, string Token, string NewPassword);
-// DTOs para User Management
 public record CreateUserDto(string Username, string Email, string Password, string Role);
 public record UpdateUserDto(string Username, string Email, string? Password, string Role);
+public record CreateTenantDto(string Name, string? Slug);
+public record CreateTenantAdminDto(string Username, string Email);

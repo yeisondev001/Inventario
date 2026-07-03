@@ -510,15 +510,20 @@
                     saveAttempts(failedAttempts);
 
                     const data = await r.json();
-                    console.log('✅ Login exitoso - Datos recibidos:', data);
-                    console.log('👤 Usuario:', data.username);
-                    console.log('🎭 Rol:', data.role);
-                    console.log('🔗 Redirección a:', data.redirectUrl);
+                    console.log('✅ Login exitoso');
+
+                    // Guardar el JWT y datos de sesión
+                    if (data.token) {
+                        localStorage.setItem('authToken', data.token);
+                        localStorage.setItem('authUser', data.username);
+                        localStorage.setItem('authRole', data.role);
+                    } else {
+                        console.warn('⚠️ El servidor no devolvió token JWT');
+                    }
 
                     showMessage('msg', `Bienvenido ${data.username} (${data.role}). Redirigiendo...`, true);
 
                     setTimeout(() => {
-                        console.log('🚀 Redirigiendo a:', data.redirectUrl);
                         window.location.href = data.redirectUrl;
                     }, 1000);
                 } else {
@@ -565,11 +570,8 @@
             const data = await r.json();
 
             if (r.ok) {
-                showMessage('msg-forgot', 'Correo enviado. Token (demo): ' + (data.token ?? '(no devuelto)'), true);
-                setTimeout(() => {
-                    showReset();
-                    document.getElementById('token').value = data.token ?? '';
-                }, 2000);
+                showMessage('msg-forgot', 'Si el correo está registrado, se enviaron las instrucciones de recuperación.', true);
+                setTimeout(() => { showReset(); }, 2000);
             } else {
                 showMessage('msg-forgot', 'No se pudo enviar el correo. Verifica tu email.', false);
             }

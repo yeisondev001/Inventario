@@ -5,8 +5,11 @@ namespace InventarioApi.Models;
 public class Category
 {
     public int Id { get; set; }
+    public int TenantId { get; set; }
+    public Tenant? Tenant { get; set; }
+
     public string Name { get; set; } = null!;
 
-    [JsonIgnore]                   
+    [JsonIgnore]
     public List<Product> Products { get; set; } = new();
 }
