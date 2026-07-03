@@ -1,25 +1,35 @@
 ﻿using InventarioApi.Data;
 using InventarioApi.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace InventarioApi.Controllers;
 
 [ApiController]
 [Route("products")]
+[Authorize]
 public class ProductsController : ControllerBase
 {
     private readonly AppDbContext _db;
     public ProductsController(AppDbContext db) => _db = db;
 
-    /// <summary>
-    /// Obtiene todos los productos con su stock actual
-    /// </summary>
+    private int? GetCurrentTenantId()
+    {
+        var claim = User.FindFirst("TenantId");
+        return int.TryParse(claim?.Value, out var id) ? id : null;
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
+        var tenantId = GetCurrentTenantId();
+        if (tenantId == null) return BadRequest(new { message = "Usuario sin tienda asignada" });
+
         var products = await _db.Products
             .AsNoTracking()
+            .Where(p => p.TenantId == tenantId)
             .Include(p => p.Category)
             .Select(p => new
             {
@@ -31,9 +41,8 @@ public class ProductsController : ControllerBase
                 UnitPrice = p.UnitPrice,
                 p.CategoryId,
                 Category = p.Category != null ? p.Category.Name : null,
-                // Calcular stock desde InventoryMovements
                 Stock = _db.InventoryMovements
-                    .Where(m => m.ProductId == p.Id)
+                    .Where(m => m.ProductId == p.Id && m.TenantId == tenantId)
                     .Sum(m => m.Type == MovementType.In ? m.Quantity : -m.Quantity)
             })
             .ToListAsync();
@@ -41,16 +50,16 @@ public class ProductsController : ControllerBase
         return Ok(products);
     }
 
-    /// <summary>
-    /// Obtiene un producto por ID
-    /// </summary>
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
+        var tenantId = GetCurrentTenantId();
+        if (tenantId == null) return BadRequest(new { message = "Usuario sin tienda asignada" });
+
         var product = await _db.Products
             .AsNoTracking()
+            .Where(p => p.Id == id && p.TenantId == tenantId)
             .Include(p => p.Category)
-            .Where(p => p.Id == id)
             .Select(p => new
             {
                 p.Id,
@@ -62,7 +71,7 @@ public class ProductsController : ControllerBase
                 p.CategoryId,
                 Category = p.Category != null ? p.Category.Name : null,
                 Stock = _db.InventoryMovements
-                    .Where(m => m.ProductId == p.Id)
+                    .Where(m => m.ProductId == p.Id && m.TenantId == tenantId)
                     .Sum(m => m.Type == MovementType.In ? m.Quantity : -m.Quantity)
             })
             .FirstOrDefaultAsync();
@@ -73,18 +82,15 @@ public class ProductsController : ControllerBase
         return Ok(product);
     }
 
-    /// <summary>
-    /// Busca productos por nombre o SKU (codigo).
-    /// </summary>
-    /// <param name="q">Texto de busqueda (nombre o SKU)</param>
-    /// <param name="page">Pagina (1 por defecto)</param>
-    /// <param name="pageSize">Tamano de pagina (10 por defecto)</param>
     [HttpGet("search")]
     public async Task<IActionResult> Search(
         [FromQuery] string q,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
     {
+        var tenantId = GetCurrentTenantId();
+        if (tenantId == null) return BadRequest(new { message = "Usuario sin tienda asignada" });
+
         if (string.IsNullOrWhiteSpace(q))
             return BadRequest(new { message = "Debe especificar el parametro 'q'." });
 
@@ -92,6 +98,7 @@ public class ProductsController : ControllerBase
 
         var query = _db.Products
             .AsNoTracking()
+            .Where(p => p.TenantId == tenantId)
             .Include(p => p.Category)
             .Where(p =>
                 EF.Functions.Like(p.Name, $"%{q}%") ||
@@ -112,41 +119,34 @@ public class ProductsController : ControllerBase
                 UnitPrice = p.UnitPrice,
                 Category = p.Category != null ? p.Category.Name : null,
                 Stock = _db.InventoryMovements
-                    .Where(m => m.ProductId == p.Id)
+                    .Where(m => m.ProductId == p.Id && m.TenantId == tenantId)
                     .Sum(m => m.Type == MovementType.In ? m.Quantity : -m.Quantity)
             })
             .ToListAsync();
 
-        return Ok(new
-        {
-            total,
-            page,
-            pageSize,
-            items
-        });
+        return Ok(new { total, page, pageSize, items });
     }
 
-    /// <summary>
-    /// Crea un nuevo producto
-    /// </summary>
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] ProductCreateDto dto)
     {
+        var tenantId = GetCurrentTenantId();
+        if (tenantId == null) return BadRequest(new { message = "Usuario sin tienda asignada" });
+
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        // Verificar si el SKU ya existe
-        var existingSku = await _db.Products.AnyAsync(p => p.SKU == dto.Sku);
+        var existingSku = await _db.Products.AnyAsync(p => p.SKU == dto.Sku && p.TenantId == tenantId);
         if (existingSku)
             return BadRequest(new { message = $"Ya existe un producto con el SKU '{dto.Sku}'." });
 
-        // Verificar que la categoria existe
-        var categoryExists = await _db.Categories.AnyAsync(c => c.Id == dto.CategoryId);
+        var categoryExists = await _db.Categories.AnyAsync(c => c.Id == dto.CategoryId && c.TenantId == tenantId);
         if (!categoryExists)
             return BadRequest(new { message = $"La categoria con ID {dto.CategoryId} no existe." });
 
         var product = new Product
         {
+            TenantId = tenantId.Value,
             SKU = dto.Sku,
             Name = dto.Name,
             Description = dto.Description,
@@ -173,31 +173,29 @@ public class ProductsController : ControllerBase
             });
     }
 
-    /// <summary>
-    /// Actualiza un producto existente
-    /// </summary>
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, [FromBody] ProductUpdateDto dto)
     {
+        var tenantId = GetCurrentTenantId();
+        if (tenantId == null) return BadRequest(new { message = "Usuario sin tienda asignada" });
+
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var product = await _db.Products.FindAsync(id);
+        var product = await _db.Products.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == tenantId);
         if (product == null)
             return NotFound(new { message = $"Producto con ID {id} no encontrado." });
 
-        // Verificar si el nuevo SKU ya existe en otro producto
         if (dto.Sku != product.SKU)
         {
-            var existingSku = await _db.Products.AnyAsync(p => p.SKU == dto.Sku && p.Id != id);
+            var existingSku = await _db.Products.AnyAsync(p => p.SKU == dto.Sku && p.Id != id && p.TenantId == tenantId);
             if (existingSku)
                 return BadRequest(new { message = $"Ya existe otro producto con el SKU '{dto.Sku}'." });
         }
 
-        // Verificar que la categoria existe
         if (dto.CategoryId != product.CategoryId)
         {
-            var categoryExists = await _db.Categories.AnyAsync(c => c.Id == dto.CategoryId);
+            var categoryExists = await _db.Categories.AnyAsync(c => c.Id == dto.CategoryId && c.TenantId == tenantId);
             if (!categoryExists)
                 return BadRequest(new { message = $"La categoria con ID {dto.CategoryId} no existe." });
         }
@@ -227,18 +225,17 @@ public class ProductsController : ControllerBase
         });
     }
 
-    /// <summary>
-    /// Elimina un producto (solo si no tiene movimientos)
-    /// </summary>
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var product = await _db.Products.FindAsync(id);
+        var tenantId = GetCurrentTenantId();
+        if (tenantId == null) return BadRequest(new { message = "Usuario sin tienda asignada" });
+
+        var product = await _db.Products.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == tenantId);
         if (product == null)
             return NotFound(new { message = $"Producto con ID {id} no encontrado." });
 
-        // Verificar si tiene movimientos de inventario
-        var hasMovements = await _db.InventoryMovements.AnyAsync(m => m.ProductId == id);
+        var hasMovements = await _db.InventoryMovements.AnyAsync(m => m.ProductId == id && m.TenantId == tenantId);
         if (hasMovements)
             return BadRequest(new { message = "No se puede eliminar el producto porque tiene movimientos de inventario asociados." });
 
@@ -248,24 +245,21 @@ public class ProductsController : ControllerBase
         return Ok(new { message = "Producto eliminado exitosamente" });
     }
 
-    /// <summary>
-    /// Elimina un producto y todos sus movimientos de inventario (eliminacion forzada)
-    /// </summary>
     [HttpDelete("{id}/force")]
     public async Task<IActionResult> ForceDelete(int id)
     {
-        var product = await _db.Products.FindAsync(id);
+        var tenantId = GetCurrentTenantId();
+        if (tenantId == null) return BadRequest(new { message = "Usuario sin tienda asignada" });
+
+        var product = await _db.Products.FirstOrDefaultAsync(p => p.Id == id && p.TenantId == tenantId);
         if (product == null)
             return NotFound(new { message = $"Producto con ID {id} no encontrado." });
 
-        // Eliminar todos los movimientos asociados
         var movements = await _db.InventoryMovements
-            .Where(m => m.ProductId == id)
+            .Where(m => m.ProductId == id && m.TenantId == tenantId)
             .ToListAsync();
 
         _db.InventoryMovements.RemoveRange(movements);
-
-        // Eliminar el producto
         _db.Products.Remove(product);
 
         await _db.SaveChangesAsync();
@@ -278,7 +272,6 @@ public class ProductsController : ControllerBase
     }
 }
 
-// DTOs para crear y actualizar productos
 public record ProductCreateDto(
     string Sku,
     string Name,

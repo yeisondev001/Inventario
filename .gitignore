@@ -1,3 +1,9 @@
 .vs/
 bin/
 obj/
+
+# Archivos con credenciales / secretos — NO subir
+contrasenasUsers.txt
+*.secrets.txt
+appsettings.Local.json
+appsettings.*.Local.json

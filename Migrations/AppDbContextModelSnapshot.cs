@@ -67,6 +67,9 @@ namespace InventarioApi.Migrations
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("TenantId")
+                        .HasColumnType("int");
+
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("bit");
 
@@ -84,6 +87,8 @@ namespace InventarioApi.Migrations
                         .HasDatabaseName("UserNameIndex")
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
 
+                    b.HasIndex("TenantId");
+
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
@@ -99,16 +104,14 @@ namespace InventarioApi.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
-                    b.ToTable("Categories");
+                    b.HasIndex("TenantId");
 
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Name = "General"
-                        });
+                    b.ToTable("Categories");
                 });
 
             modelBuilder.Entity("InventarioApi.Models.InventoryMovement", b =>
@@ -131,6 +134,9 @@ namespace InventarioApi.Migrations
                     b.Property<string>("Reference")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("int");
+
                     b.Property<int>("Type")
                         .HasColumnType("int");
 
@@ -140,6 +146,8 @@ namespace InventarioApi.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("WarehouseId");
 
@@ -171,6 +179,9 @@ namespace InventarioApi.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("decimal(18,2)");
 
@@ -178,21 +189,36 @@ namespace InventarioApi.Migrations
 
                     b.HasIndex("CategoryId");
 
-                    b.HasIndex("SKU")
+                    b.HasIndex("TenantId", "SKU")
                         .IsUnique();
 
                     b.ToTable("Products");
+                });
 
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            CategoryId = 1,
-                            Name = "Producto demo",
-                            PurchasePrice = 80m,
-                            SKU = "P-0001",
-                            UnitPrice = 100m
-                        });
+            modelBuilder.Entity("InventarioApi.Models.Tenant", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Slug")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Tenants");
                 });
 
             modelBuilder.Entity("InventarioApi.Models.Warehouse", b =>
@@ -210,17 +236,14 @@ namespace InventarioApi.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
-                    b.ToTable("Warehouses");
+                    b.HasIndex("TenantId");
 
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Location = "Matriz",
-                            Name = "Principal"
-                        });
+                    b.ToTable("Warehouses");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -356,12 +379,39 @@ namespace InventarioApi.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("InventarioApi.Models.AppUser", b =>
+                {
+                    b.HasOne("InventarioApi.Models.Tenant", "Tenant")
+                        .WithMany("Users")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("InventarioApi.Models.Category", b =>
+                {
+                    b.HasOne("InventarioApi.Models.Tenant", "Tenant")
+                        .WithMany("Categories")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("InventarioApi.Models.InventoryMovement", b =>
                 {
                     b.HasOne("InventarioApi.Models.Product", "Product")
                         .WithMany("Movements")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("InventarioApi.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("InventarioApi.Models.Warehouse", "Warehouse")
@@ -371,6 +421,8 @@ namespace InventarioApi.Migrations
                         .IsRequired();
 
                     b.Navigation("Product");
+
+                    b.Navigation("Tenant");
 
                     b.Navigation("Warehouse");
                 });
@@ -383,7 +435,26 @@ namespace InventarioApi.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("InventarioApi.Models.Tenant", "Tenant")
+                        .WithMany("Products")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Category");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("InventarioApi.Models.Warehouse", b =>
+                {
+                    b.HasOne("InventarioApi.Models.Tenant", "Tenant")
+                        .WithMany("Warehouses")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -445,6 +516,17 @@ namespace InventarioApi.Migrations
             modelBuilder.Entity("InventarioApi.Models.Product", b =>
                 {
                     b.Navigation("Movements");
+                });
+
+            modelBuilder.Entity("InventarioApi.Models.Tenant", b =>
+                {
+                    b.Navigation("Categories");
+
+                    b.Navigation("Products");
+
+                    b.Navigation("Users");
+
+                    b.Navigation("Warehouses");
                 });
 
             modelBuilder.Entity("InventarioApi.Models.Warehouse", b =>
