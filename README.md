@@ -8,94 +8,47 @@ Sistema de inventario web **multi-tenant** (SaaS) pensado para rentarse a múlti
 
 Una sola aplicación + una sola base de datos sirve a **N tiendas** simultáneamente. Cada tienda solo ve y edita **sus propios** productos, categorías, almacenes, movimientos y empleados. El dueño del SaaS (tú) gestiona tiendas y clientes desde un panel superior.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    DUEÑO DEL SAAS (Tú)                          │
-│              Rol: Admin (SuperAdmin)                            │
-│   - Crea tiendas (Tenants)                                      │
-│   - Crea AdminTienda para cada cliente                          │
-│   - Ve todas las tiendas                                        │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-            ┌──────────────┴──────────────┐
-            │                             │
-            ▼                             ▼
-┌─────────────────────┐       ┌─────────────────────┐
-│   TIENDA A          │       │   TIENDA B          │
-│ "Proteínas Express" │       │  "Ferretería López" │
-│                     │       │                     │
-│  AdminTienda: juan  │       │  AdminTienda: ana   │
-│  Empleados: cajero1 │       │  Empleados: vendedor│
-│                     │       │                     │
-│  Productos: Whey,   │       │  Productos: Clavos, │
-│  BCAAs, Barras      │       │  Martillos, Pintura │
-│  (solo su inventario)│      │  (solo su inventario)│
-└─────────────────────┘       └─────────────────────┘
-        │                              │
-        └──────────────┬───────────────┘
-                       ▼
-         ┌─────────────────────────┐
-         │  UNA SOLA API + UNA DB  │
-         │   Filtro automático    │
-         │     por TenantId       │
-         └─────────────────────────┘
+```mermaid
+flowchart TD
+    A["👤 Dueño del SaaS (Tú)<br/>Rol: Admin / SuperAdmin<br/>• Crea tiendas<br/>• Crea AdminsTienda<br/>• Ve todas las tiendas"]
+
+    A --> B["🏪 Tienda A — Proteínas Express<br/>AdminTienda: juan<br/>Productos: Whey, BCAAs, Barras"]
+    A --> C["🏪 Tienda B — Ferretería López<br/>AdminTienda: ana<br/>Productos: Clavos, Martillos, Pintura"]
+
+    B --> D["🗄️ Una sola API + Una sola DB<br/>Filtro automático por TenantId"]
+    C --> D
 ```
 
 ---
 
 ## 🏗️ Arquitectura
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         NAVEGADOR (Cliente)                         │
-│                                                                     │
-│   login.html                                                        │
-│        │                                                            │
-│        ▼                                                            │
-│   ┌─────────────┐   ┌──────────────────┐   ┌──────────────────┐    │
-│   │   Admin     │   │   AdminTienda    │   │      User        │    │
-│   │ SuperAdmin  │   │   (cliente)      │   │   (empleado)     │    │
-│   │  Panel SaaS │   │  Panel Inventario│   │  Panel Consulta  │    │
-│   └──────┬──────┘   └────────┬─────────┘   └────────┬─────────┘    │
-└──────────┼───────────────────┼──────────────────────┼──────────────┘
-           │                   │                      │
-           │      JWT (Bearer) │ con claim TenantId   │
-           │                   │                      │
-           ▼                   ▼                      ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│              API REST — ASP.NET Core 8 (.NET)                       │
-│                                                                     │
-│   ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐      │
-│   │ /api/tenants │  │  /products   │  │ /api/tenant/users    │      │
-│   │  (Admin)     │  │ /categories  │  │   (AdminTienda)      │      │
-│   │              │  │  /warehouses │  │                      │      │
-│   │              │  │  /movements  │  │                      │      │
-│   └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘      │
-│          │                 │                     │                  │
-│          ▼                 ▼                     ▼                  │
-│   ┌──────────────────────────────────────────────────────────┐       │
-│   │            Filtro automático por TenantId               │       │
-│   │   (todas las queries WHERE TenantId = user.TenantId)    │       │
-│   └──────────────────────────────────────────────────────────┘       │
-│                                  │                                  │
-│   ┌──────────────────────────────┴───────────────────────────┐      │
-│   │  ASP.NET Identity + JWT Auth  │  EF Core  │  Swagger UI  │      │
-│   └──────────────────────────────────────────────────────────┘      │
-└──────────────────────────────────┬──────────────────────────────────┘
-                                   │
-                                   ▼
-                 ┌─────────────────────────────────┐
-                 │       SQL Server (MSSQL)        │
-                 │                                 │
-                 │  Tenants                        │
-                 │  ├── AspNetUsers (TenantId)     │
-                 │  ├── Products (TenantId)        │
-                 │  ├── Categories (TenantId)      │
-                 │  ├── Warehouses (TenantId)      │
-                 │  └── InventoryMovements (...)   │
-                 │                                 │
-                 │  Índices: (TenantId, SKU) único │
-                 └─────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Browser["🌐 Navegador (Cliente)"]
+        L["login.html"]
+        L --> P1["Admin — Panel SaaS<br/>gestiona tiendas"]
+        L --> P2["AdminTienda — Panel Inventario<br/>gestiona SU tienda"]
+        L --> P3["User — Panel Consulta<br/>solo lectura"]
+    end
+
+    P1 -- "JWT con claim TenantId" --> API
+    P2 -- "JWT con claim TenantId" --> API
+    P3 -- "JWT con claim TenantId" --> API
+
+    subgraph API["⚡ API REST — ASP.NET Core 8"]
+        E1["/api/tenants<br/>(Admin)"]
+        E2["/products<br/>/categories<br/>/warehouses<br/>/movements"]
+        E3["/api/tenant/users<br/>(AdminTienda)"]
+
+        E1 --> F["🔒 Filtro automático<br/>por TenantId"]
+        E2 --> F
+        E3 --> F
+
+        F --> G["ASP.NET Identity + JWT Auth<br/>EF Core 9<br/>Swagger UI"]
+    end
+
+    G --> DB[("🗄️ SQL Server — MSSQL<br/>Tenants + AspNetUsers<br/>Products / Categories<br/>Warehouses / Movements<br/>Índice: TenantId+SKU único")]
 ```
 
 ---
@@ -123,25 +76,14 @@ Una sola aplicación + una sola base de datos sirve a **N tiendas** simultáneam
 
 ---
 
-## 🚀 Cómo funciona el alta de un cliente
+## 🚀 Alta de un cliente
 
-```
-1. Tú entras como Admin (SuperAdmin)
-        │
-        ▼
-2. Creas una Tienda → "Proteínas Express"
-        │
-        ▼
-3. Creas un AdminTienda para esa tienda
-        │  (la API te devuelve una contraseña temporal)
-        ▼
-4. Le pasas al cliente: URL + usuario + contraseña
-        │
-        ▼
-5. El cliente entra como AdminTienda
-   └─ Solo ve SU tienda
-   └─ Crea sus productos, categorías, almacenes, movimientos
-   └─ Crea empleados (User) si quiere
+```mermaid
+flowchart LR
+    S1["1️⃣ Entras como Admin<br/>(SuperAdmin)"] --> S2["2️⃣ Creas Tienda<br/>'Proteínas Express'"]
+    S2 --> S3["3️⃣ Creas AdminTienda<br/>la API devuelve<br/>password temporal"]
+    S3 --> S4["4️⃣ Pasas al cliente<br/>URL + usuario + password"]
+    S4 --> S5["5️⃣ Cliente entra como AdminTienda<br/>ve solo SU tienda<br/>gestiona inventario y empleados"]
 ```
 
 ---
@@ -149,13 +91,15 @@ Una sola aplicación + una sola base de datos sirve a **N tiendas** simultáneam
 ## 🔌 Endpoints de la API
 
 ### Autenticación
+
 | Método | Ruta | Descripción | Acceso |
 |---|---|---|---|
-| `POST` | `/login` | Login con username/password → devuelve JWT | Público |
+| `POST` | `/login` | Login → devuelve JWT | Público |
 | `POST` | `/auth/forgot-password` | Solicitar reset de password | Público |
 | `POST` | `/auth/reset-password` | Resetear password con token | Público |
 
 ### Productos
+
 | Método | Ruta | Descripción | Acceso |
 |---|---|---|---|
 | `GET` | `/products` | Listar productos (con stock) | Autenticado |
@@ -167,15 +111,17 @@ Una sola aplicación + una sola base de datos sirve a **N tiendas** simultáneam
 | `DELETE` | `/products/{id}/force` | Eliminar con movimientos | Autenticado |
 
 ### Categorías / Almacenes / Movimientos
+
 | Método | Ruta | Descripción | Acceso |
 |---|---|---|---|
-| `GET`/`POST` | `/categories` | Listar/crear categorías | Autenticado |
+| `GET` / `POST` | `/categories` | Listar / crear categorías | Autenticado |
 | `DELETE` | `/categories/{id}` | Eliminar categoría | Autenticado |
-| `GET`/`POST` | `/warehouses` | Listar/crear almacenes | Autenticado |
+| `GET` / `POST` | `/warehouses` | Listar / crear almacenes | Autenticado |
 | `DELETE` | `/warehouses/{id}` | Eliminar almacén | Autenticado |
-| `GET`/`POST` | `/movements` | Listar/registrar movimientos | Autenticado |
+| `GET` / `POST` | `/movements` | Listar / registrar movimientos | Autenticado |
 
 ### Gestión SaaS (solo Admin / SuperAdmin)
+
 | Método | Ruta | Descripción |
 |---|---|---|
 | `GET` | `/api/tenants` | Listar todas las tiendas |
@@ -184,6 +130,7 @@ Una sola aplicación + una sola base de datos sirve a **N tiendas** simultáneam
 | `POST` | `/api/tenants/{id}/admins` | Crear AdminTienda (devuelve password temporal) |
 
 ### Gestión de empleados (solo AdminTienda)
+
 | Método | Ruta | Descripción |
 |---|---|---|
 | `GET` | `/api/tenant/users` | Listar empleados de MI tienda |
@@ -194,58 +141,71 @@ Una sola aplicación + una sola base de datos sirve a **N tiendas** simultáneam
 
 ## 🗄️ Modelo de datos
 
-```
-┌──────────────┐        ┌──────────────────────┐
-│   Tenants    │◀───────│     AspNetUsers      │
-│──────────────│        │──────────────────────│
-│ Id           │        │ Id                   │
-│ Name         │        │ UserName             │
-│ Slug         │        │ Email                │
-│ Active       │        │ TenantId (FK) ◀──┐   │
-│ CreatedAt    │        └──────────────────┼───┘
-└──────┬───────┘                           │
-       │                                   │
-       │                                   │
-       ▼                                   │
-┌──────────────┐   ┌──────────────┐       │
-│  Categories  │   │  Warehouses  │       │
-│──────────────│   │──────────────│       │
-│ Id           │   │ Id           │       │
-│ TenantId ◀───┼───│ TenantId ◀───┼───┐   │
-│ Name         │   │ Name         │   │   │
-└──────┬───────┘   │ Location     │   │   │
-       │           └──────┬───────┘   │   │
-       │                  │           │   │
-       ▼                  ▼           │   │
-┌─────────────────────────────────────┴───┴──┐
-│           InventoryMovements                │
-│─────────────────────────────────────────────│
-│ Id                                          │
-│ TenantId  ◀─────────────────────────────────│
-│ ProductId  (FK → Products)                  │
-│ WarehouseId (FK → Warehouses)              │
-│ Type (In=1, Out=2)                          │
-│ Quantity                                    │
-│ MovementDate                                │
-│ Reference                                   │
-└─────────────────────────────────────────────┘
-                ▲
-                │
-        ┌──────────────┐
-        │   Products   │
-        │──────────────│
-        │ Id           │
-        │ TenantId     │
-        │ SKU          │  ◀── único por (TenantId, SKU)
-        │ Name         │
-        │ Description  │
-        │ PurchasePrice│
-        │ UnitPrice    │
-        │ CategoryId   │
-        └──────────────┘
+```mermaid
+erDiagram
+    Tenants ||--o{ AspNetUsers : "tiene"
+    Tenants ||--o{ Categories : "tiene"
+    Tenants ||--o{ Warehouses : "tiene"
+    Tenants ||--o{ Products : "tiene"
+    Tenants ||--o{ InventoryMovements : "tiene"
+
+    Categories ||--o{ Products : "agrupa"
+    Products ||--o{ InventoryMovements : "registra"
+    Warehouses ||--o{ InventoryMovements : "almacena"
+
+    Tenants {
+        int Id PK
+        string Name
+        string Slug
+        bool Active
+        datetime CreatedAt
+    }
+
+    AspNetUsers {
+        string Id PK
+        string UserName
+        string Email
+        int TenantId FK
+    }
+
+    Categories {
+        int Id PK
+        int TenantId FK
+        string Name
+    }
+
+    Warehouses {
+        int Id PK
+        int TenantId FK
+        string Name
+        string Location
+    }
+
+    Products {
+        int Id PK
+        int TenantId FK
+        string SKU
+        string Name
+        string Description
+        decimal PurchasePrice
+        decimal UnitPrice
+        int CategoryId FK
+    }
+
+    InventoryMovements {
+        int Id PK
+        int TenantId FK
+        int ProductId FK
+        int WarehouseId FK
+        int Type
+        decimal Quantity
+        datetime MovementDate
+        string Reference
+    }
 ```
 
 **Restricciones de integridad:**
+
 - SKU único **por tienda** (índice compuesto `TenantId + SKU`)
 - No se puede eliminar categoría con productos asociados
 - No se puede eliminar almacén con movimientos asociados
@@ -272,6 +232,7 @@ Una sola aplicación + una sola base de datos sirve a **N tiendas** simultáneam
 ## 🏃 Cómo correr en local
 
 ### Requisitos
+
 - .NET SDK 8+
 - SQL Server (Express OK) o acceso a MSSQL en la nube
 - Visual Studio 2022 o `dotnet` CLI
@@ -287,13 +248,13 @@ dotnet restore
 
 # 3. Aplicar migración (también se aplica solo al arrancar)
 dotnet ef database update
-# o simplemente arrancar la app, que corre MigrateAsync() automáticamente
 
 # 4. Arrancar
 dotnet run
 ```
 
 Al primer arranque, la app:
+
 1. Crea la base de datos y aplica la migración `InitialCreateMultiTenant`
 2. Crea los roles `Admin`, `AdminTienda`, `User`
 3. Crea el SuperAdmin `admin` con **password aleatorio** — se muestra **una sola vez** en consola
@@ -313,12 +274,14 @@ Abrí http://localhost:5000 → te redirige a `/login.html`.
 ## ☁️ Despliegue en MonsterASP.NET
 
 ### Plan Free ($0/mes)
+
 - 1 website, subdominio `*.monsterasp.net`
 - 256 MB RAM, 5 GB disco
 - 1 MSSQL database (1 GB)
 - Solo datacenter EU
 
 ### Pasos
+
 1. Crear cuenta en https://www.monsterasp.net
 2. Crear website (free) → anotar URL `xxx.monsterasp.net`
 3. Crear MSSQL database → anotar `Server`, `Database`, `User Id`, `Password`
@@ -331,7 +294,9 @@ Abrí http://localhost:5000 → te redirige a `/login.html`.
 8. Entrar a la URL → login con `admin` + password → crear primera tienda
 
 ### Plan Premium Single ($1.95/mes)
+
 Para uso comercial con dominio propio:
+
 - Dominio personalizado (`inventario.tucliente.com`)
 - 512 MB RAM
 - HTTPS via Let's Encrypt
