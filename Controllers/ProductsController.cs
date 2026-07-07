@@ -128,6 +128,7 @@ public class ProductsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "AdminTienda")]
     public async Task<IActionResult> Create([FromBody] ProductCreateDto dto)
     {
         var tenantId = GetCurrentTenantId();
@@ -174,6 +175,7 @@ public class ProductsController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = "AdminTienda")]
     public async Task<IActionResult> Update(int id, [FromBody] ProductUpdateDto dto)
     {
         var tenantId = GetCurrentTenantId();
@@ -226,6 +228,7 @@ public class ProductsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "AdminTienda")]
     public async Task<IActionResult> Delete(int id)
     {
         var tenantId = GetCurrentTenantId();
@@ -246,6 +249,7 @@ public class ProductsController : ControllerBase
     }
 
     [HttpDelete("{id}/force")]
+    [Authorize(Roles = "AdminTienda")]
     public async Task<IActionResult> ForceDelete(int id)
     {
         var tenantId = GetCurrentTenantId();

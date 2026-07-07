@@ -230,7 +230,7 @@ app.MapPost("/categories", async (Category dto, AppDbContext db, ClaimsPrincipal
     db.Categories.Add(dto);
     await db.SaveChangesAsync();
     return Results.Created($"/categories/{dto.Id}", dto);
-}).RequireAuthorization();
+}).RequireAuthorization(p => p.RequireRole("AdminTienda"));
 
 app.MapDelete("/categories/{id}", async (int id, AppDbContext db, ClaimsPrincipal user) =>
 {
@@ -246,7 +246,7 @@ app.MapDelete("/categories/{id}", async (int id, AppDbContext db, ClaimsPrincipa
     db.Categories.Remove(cat);
     await db.SaveChangesAsync();
     return Results.Ok(new { Message = "Categoria eliminada" });
-}).RequireAuthorization();
+}).RequireAuthorization(p => p.RequireRole("AdminTienda"));
 #endregion
 
 #region Warehouses
@@ -265,7 +265,7 @@ app.MapPost("/warehouses", async (Warehouse dto, AppDbContext db, ClaimsPrincipa
     db.Warehouses.Add(dto);
     await db.SaveChangesAsync();
     return Results.Created($"/warehouses/{dto.Id}", dto);
-}).RequireAuthorization();
+}).RequireAuthorization(p => p.RequireRole("AdminTienda"));
 
 app.MapDelete("/warehouses/{id}", async (int id, AppDbContext db, ClaimsPrincipal user) =>
 {
@@ -281,7 +281,7 @@ app.MapDelete("/warehouses/{id}", async (int id, AppDbContext db, ClaimsPrincipa
     db.Warehouses.Remove(wh);
     await db.SaveChangesAsync();
     return Results.Ok(new { Message = "Almacen eliminado" });
-}).RequireAuthorization();
+}).RequireAuthorization(p => p.RequireRole("AdminTienda"));
 #endregion
 
 #region Movements
@@ -323,7 +323,7 @@ app.MapPost("/movements", async (InventoryMovement dto, AppDbContext db, ClaimsP
     await db.SaveChangesAsync();
 
     return Results.Created($"/movements/{dto.Id}", dto);
-}).RequireAuthorization();
+}).RequireAuthorization(p => p.RequireRole("AdminTienda"));
 #endregion
 
 #region Authentication
