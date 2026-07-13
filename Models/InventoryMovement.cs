@@ -16,4 +16,7 @@ public class InventoryMovement
     public decimal Quantity { get; set; }
     public DateTime MovementDate { get; set; } = DateTime.UtcNow;
     public string? Reference { get; set; }
+
+    public string? UserId { get; set; }
+    public AppUser? User { get; set; }
 }

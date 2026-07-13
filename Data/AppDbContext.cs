@@ -73,5 +73,11 @@ public class AppDbContext : IdentityDbContext<AppUser>
           .HasOne(m => m.Warehouse)
           .WithMany(w => w.Movements)
           .HasForeignKey(m => m.WarehouseId);
+
+        mb.Entity<InventoryMovement>()
+          .HasOne(m => m.User)
+          .WithMany()
+          .HasForeignKey(m => m.UserId)
+          .OnDelete(DeleteBehavior.SetNull);
     }
 }
