@@ -39,13 +39,14 @@ jobs:
         path: ./publish/
         retention-days: 7
 
-    - name: Deploy to MonsterASP via SFTP
+    - name: Deploy to MonsterASP via SCP
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      uses: easingthemes/ssh-deploy-action@v2.1.6
-      env:
-        SSH_PRIVATE_KEY: ${{ secrets.FTP_PASSWORD }}
-        ARGS: "-avz --delete"
-        SOURCE: "publish/"
-        REMOTE_HOST: ${{ secrets.FTP_SERVER }}
-        REMOTE_USER: ${{ secrets.FTP_USERNAME }}
-        TARGET: "/wwwroot/"
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        port: 22
+        source: "publish/*"
+        target: "/wwwroot/"
+        strip_components: 0
