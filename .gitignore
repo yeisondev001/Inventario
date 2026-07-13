@@ -1,9 +1,45 @@
+## .NET
 .vs/
 bin/
 obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
 
 # Archivos con credenciales / secretos — NO subir
 contrasenasUsers.txt
 *.secrets.txt
 appsettings.Local.json
 appsettings.*.Local.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Publish
+publish/

@@ -308,21 +308,40 @@ Para uso comercial con dominio propio:
 ## 📁 Estructura del proyecto
 
 ```
-inventarioItla/
+inv/
 ├── Controllers/
-│   └── ProductsController.cs        # CRUD productos (filtrado por tenant)
+│   ├── AuthController.cs            # Login, forgot/reset password
+│   ├── CategoriesController.cs      # CRUD categorías
+│   ├── MovementsController.cs       # CRUD movimientos de inventario
+│   ├── ProductsController.cs        # CRUD productos (filtrado por tenant)
+│   ├── TenantsController.cs         # Gestión de tiendas (Admin)
+│   ├── TenantUsersController.cs     # Gestión de empleados (AdminTienda)
+│   └── WarehousesController.cs      # CRUD almacenes
 ├── Data/
 │   └── AppDbContext.cs              # EF Core: relaciones, índices compuestos
+├── Middleware/
+│   └── GlobalExceptionMiddleware.cs # Manejo global de excepciones
 ├── Migrations/
-│   └── 20260702233743_InitialCreateMultiTenant.cs
+│   ├── 20260702233743_InitialCreateMultiTenant.cs
+│   └── 20260713000000_AddUserIdToMovements.cs
 ├── Models/
+│   ├── Dtos/
+│   │   └── AuthDtos.cs             # DTOs para autenticación
 │   ├── AppUser.cs                   # Identity + TenantId
 │   ├── Tenant.cs                    # La "tienda"
 │   ├── Product.cs                   # Producto con TenantId
 │   ├── Category.cs
 │   ├── Warehouse.cs
-│   └── InventoryMovement.cs
+│   └── InventoryMovement.cs         # Con UserId para auditoría
+├── Services/
+│   ├── IEmailSender.cs              # Interfaz para envío de emails
+│   └── SmtpEmailSender.cs           # Implementación con MailKit
 ├── Properties/
+├── InventarioApi.Tests/
+│   ├── InventarioApi.Tests.csproj
+│   └── InventoryMovementTests.cs    # Tests unitarios básicos
+├── scripts/
+│   └── onboarding-cliente.ps1       # Script para crear cliente
 ├── wwwroot/                         # Frontend estático
 │   ├── login.html
 │   ├── js/
@@ -331,9 +350,14 @@ inventarioItla/
 │       ├── admin/                   # Panel SuperAdmin (gestiona tiendas)
 │       ├── adminTienda/             # Panel AdminTienda (gestiona inventario)
 │       └── user/                    # Panel empleado (solo consulta)
-├── Program.cs                       # Config DI, JWT, endpoints minimal API
+├── .github/
+│   └── workflows/
+│       └── ci.yml                   # GitHub Actions CI/CD
+├── Program.cs                       # Config DI, JWT, middleware (224 líneas)
 ├── appsettings.json                 # Config (sin secretos — vacío)
 ├── appsettings.Local.json           # Config local (gitignored)
+├── appsettings.Local.example.json   # Plantilla de configuración
+├── DEPLOYMENT.md                    # Guía completa de despliegue
 ├── InventarioApi.csproj
 └── Dockerfile
 ```
@@ -348,6 +372,12 @@ inventarioItla/
 - ✅ Identity con políticas de password robustas (mín. 10, mayús/minús/número/especial)
 - ✅ Validación de existencia y pertenencia al tenant en cada endpoint de escritura
 - ✅ No se puede eliminar al último AdminTienda de una tienda
+- ✅ **Lockout server-side**: 5 intentos fallidos → 15 minutos de bloqueo
+- ✅ **Middleware de excepciones**: no expone stack traces en producción
+- ✅ **Email sender real** con MailKit para recuperación de contraseñas
+- ✅ **Auditoría de movimientos**: campo `UserId` registra quién hizo cada movimiento
+- ✅ **Health checks** con endpoint `/health` para monitoreo
+- ✅ **CI/CD** con GitHub Actions
 
 ---
 
@@ -382,4 +412,24 @@ MIT — ver [LICENSE](./LICENSE) para más detalles.
 
 ## ⚠️ Estado del proyecto
 
-En desarrollo activo. Multi-tenencia implementada y funcional. Pendiente: pruebas end-to-end con múltiples tiendas en producción.
+**✅ Listo para producción** — Multi-tenencia implementada y funcional con todas las mejoras de seguridad.
+
+### Características recientes (Julio 2026)
+
+- ✅ **Refactor de arquitectura**: Program.cs reducido de 650 a 224 líneas
+- ✅ **Controllers separados**: Auth, Categories, Warehouses, Movements, Tenants, TenantUsers
+- ✅ **Lockout server-side**: Protección contra fuerza bruta (5 intentos → 15 min bloqueo)
+- ✅ **Middleware de excepciones**: No expone información sensible en producción
+- ✅ **Email sender real**: Recuperación de contraseñas con MailKit
+- ✅ **Auditoría de movimientos**: Campo `UserId` registra quién hizo cada movimiento
+- ✅ **Health checks**: Endpoint `/health` para monitoreo
+- ✅ **CI/CD**: GitHub Actions configurado
+- ✅ **Tests unitarios**: Proyecto de tests con xUnit
+- ✅ **Documentación completa**: DEPLOYMENT.md con guía de despliegue
+
+### Próximos pasos
+
+1. Configurar variables de entorno (BD, JWT, SMTP)
+2. Desplegar en servidor (MonsterASP/Azure/Docker)
+3. Crear cliente con script de onboarding
+4. Entregar credenciales al cliente
