@@ -132,16 +132,18 @@ async Task CreateDefaultUsers(IServiceProvider services)
         var existingAdmin = await userManager.FindByNameAsync(adminUser.UserName);
         if (existingAdmin == null)
         {
-            // Generar password aleatorio seguro y mostrarlo UNA sola vez
-            var password = GenerateRandomPassword();
+            // Password fijo para desarrollo/pruebas
+            // IMPORTANTE: Cambiar despues del primer login en produccion
+            var password = "Yeison123!";
             var adminResult = await userManager.CreateAsync(adminUser, password);
             if (adminResult.Succeeded)
             {
                 await userManager.AddToRoleAsync(adminUser, "Admin");
                 Console.WriteLine("========================================");
-                Console.WriteLine("SUPERADMIN CREADO (anotalo, no se muestra de nuevo):");
+                Console.WriteLine("SUPERADMIN CREADO:");
                 Console.WriteLine($"  Usuario: admin");
                 Console.WriteLine($"  Password: {password}");
+                Console.WriteLine("  (CAMBIA ESTA CONTRASENA DESPUES DEL PRIMER LOGIN)");
                 Console.WriteLine("========================================");
             }
             else
