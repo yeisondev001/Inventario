@@ -1,10 +1,8 @@
-name: CI/CD - Build and Deploy
+name: CI/CD - Build and Publish
 
 on:
   push:
-    branches: [ main, dev ]
-  pull_request:
-    branches: [ main, dev ]
+    branches: [ main ]
 
 jobs:
   build:
@@ -28,25 +26,18 @@ jobs:
       run: dotnet test InventarioApi.Tests/InventarioApi.Tests.csproj --no-build --verbosity normal
 
     - name: Publish
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: dotnet publish InventarioApi.csproj -c Release -o ./publish
 
-    - name: Upload build artifacts
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      uses: actions/upload-artifact@v4
-      with:
-        name: inventariapi-publish
-        path: ./publish/
-        retention-days: 7
+    - name: Copy wwwroot contents to publish root
+      run: |
+        cp -r wwwroot/. publish/
+        ls -la publish/
 
-    - name: Deploy to MonsterASP via SCP
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      uses: appleboy/scp-action@v0.1.7
+    - name: Deploy to publish branch
+      uses: peaceiris/actions-gh-pages@v3
       with:
-        host: ${{ secrets.FTP_SERVER }}
-        username: ${{ secrets.FTP_USERNAME }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        port: 22
-        source: "publish/*"
-        target: "/wwwroot/"
-        strip_components: 0
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./publish
+        publish_branch: publish
+        force_orphan: true
+        enable_jekyll: false
