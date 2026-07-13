@@ -19,17 +19,17 @@ jobs:
         dotnet-version: '8.0.x'
 
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore InventarioApi.sln
 
     - name: Build
-      run: dotnet build --no-restore
+      run: dotnet build InventarioApi.sln --no-restore
 
     - name: Test
-      run: dotnet test --no-build --verbosity normal
+      run: dotnet test InventarioApi.Tests/InventarioApi.Tests.csproj --no-build --verbosity normal
 
     - name: Publish
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: dotnet publish -c Release -o ./publish
+      run: dotnet publish InventarioApi.csproj -c Release -o ./publish
 
     - name: Deploy to MonsterASP via FTP
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
