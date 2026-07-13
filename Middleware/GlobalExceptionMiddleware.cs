@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Net;
 using System.Text.Json;
 
@@ -36,18 +37,20 @@ public class GlobalExceptionMiddleware
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
 
-        var response = isDevelopment
-            ? new
-            {
-                Message = "Error interno del servidor",
-                Detail = exception.Message,
-                StackTrace = exception.StackTrace
-            }
-            : new
-            {
-                Message = "Error interno del servidor",
-                TraceId = context.TraceIdentifier
-            };
+        var response = new Dictionary<string, object>
+        {
+            ["message"] = "Error interno del servidor"
+        };
+
+        if (isDevelopment)
+        {
+            response["detail"] = exception.Message;
+            response["stackTrace"] = exception.StackTrace;
+        }
+        else
+        {
+            response["traceId"] = context.TraceIdentifier;
+        }
 
         var json = JsonSerializer.Serialize(response, new JsonSerializerOptions
         {
