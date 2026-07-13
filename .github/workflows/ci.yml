@@ -27,16 +27,25 @@ jobs:
     - name: Test
       run: dotnet test InventarioApi.Tests/InventarioApi.Tests.csproj --no-build --verbosity normal
 
+    - name: Upload build artifacts
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: actions/upload-artifact@v4
+      with:
+        name: inventariapi-publish
+        path: ./publish/
+        retention-days: 7
+
     - name: Publish
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: dotnet publish InventarioApi.csproj -c Release -o ./publish
 
-    - name: Deploy to MonsterASP via FTP
+    - name: Deploy to MonsterASP via SFTP
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      uses: wlixcc/SFTP-Deploy-Action@v1
       with:
-        server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
+        server: ${{ secrets.FTP_SERVER }}
         password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: ./publish/
-        server-dir: /wwwroot/
+        port: 22
+        local_path: ./publish/
+        remote_path: /wwwroot/
