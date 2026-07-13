@@ -153,8 +153,26 @@ async Task CreateDefaultUsers(IServiceProvider services)
         }
         else
         {
+            // Actualizar contraseña si el admin ya existe
+            var password = "Yeison123!";
+            var resetToken = await userManager.GeneratePasswordResetTokenAsync(existingAdmin);
+            var resetResult = await userManager.ResetPasswordAsync(existingAdmin, resetToken, password);
+            
             await userManager.AddToRoleAsync(existingAdmin, "Admin");
-            Console.WriteLine("SuperAdmin 'admin' ya existe");
+            
+            if (resetResult.Succeeded)
+            {
+                Console.WriteLine("========================================");
+                Console.WriteLine("SUPERADMIN ACTUALIZADO:");
+                Console.WriteLine($"  Usuario: admin");
+                Console.WriteLine($"  Password: {password}");
+                Console.WriteLine("  (CAMBIA ESTA CONTRASENA DESPUES DEL PRIMER LOGIN)");
+                Console.WriteLine("========================================");
+            }
+            else
+            {
+                Console.WriteLine($"SuperAdmin 'admin' ya existe (error actualizando password: {string.Join(", ", resetResult.Errors.Select(e => e.Description))})");
+            }
         }
 
         Console.WriteLine("========================================\n");
