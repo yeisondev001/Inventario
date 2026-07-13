@@ -27,6 +27,10 @@ jobs:
     - name: Test
       run: dotnet test InventarioApi.Tests/InventarioApi.Tests.csproj --no-build --verbosity normal
 
+    - name: Publish
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: dotnet publish InventarioApi.csproj -c Release -o ./publish
+
     - name: Upload build artifacts
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       uses: actions/upload-artifact@v4
@@ -35,17 +39,13 @@ jobs:
         path: ./publish/
         retention-days: 7
 
-    - name: Publish
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: dotnet publish InventarioApi.csproj -c Release -o ./publish
-
     - name: Deploy to MonsterASP via SFTP
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      uses: wlixcc/SFTP-Deploy-Action@v1
-      with:
-        username: ${{ secrets.FTP_USERNAME }}
-        server: ${{ secrets.FTP_SERVER }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        port: 22
-        local_path: ./publish/
-        remote_path: /wwwroot/
+      uses: easingthemes/ssh-deploy-action@v2.1.6
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.FTP_PASSWORD }}
+        ARGS: "-avz --delete"
+        SOURCE: "publish/"
+        REMOTE_HOST: ${{ secrets.FTP_SERVER }}
+        REMOTE_USER: ${{ secrets.FTP_USERNAME }}
+        TARGET: "/wwwroot/"
