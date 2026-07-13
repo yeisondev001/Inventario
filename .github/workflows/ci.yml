@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD - Build and Deploy
 
 on:
   push:
@@ -26,3 +26,18 @@ jobs:
 
     - name: Test
       run: dotnet test --no-build --verbosity normal
+
+    - name: Publish
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: dotnet publish -c Release -o ./publish
+
+    - name: Deploy to MonsterASP via FTP
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      with:
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        local-dir: ./publish/
+        server-dir: /wwwroot/
+        dangerous-clean-slate: true
