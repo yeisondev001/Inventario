@@ -1,6 +1,7 @@
 using InventarioApi.Models;
 using InventarioApi.Models.Dtos;
 using InventarioApi.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
@@ -131,5 +132,25 @@ public class AuthController : ControllerBase
             return Ok(new { Message = "Contrasena actualizada correctamente" });
 
         return BadRequest(string.Join(", ", result.Errors.Select(e => e.Description)));
+    }
+
+    [Authorize]
+    [HttpPost("/auth/change-password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null)
+            return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null)
+            return BadRequest(new { Message = "Usuario no encontrado" });
+
+        var result = await _userManager.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword);
+
+        if (result.Succeeded)
+            return Ok(new { Message = "Contrasena cambiada correctamente" });
+
+        return BadRequest(new { Message = string.Join(", ", result.Errors.Select(e => e.Description)) });
     }
 }

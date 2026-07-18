@@ -123,10 +123,19 @@ async Task CreateDefaultUsers(IServiceProvider services)
         }
 
         // Crear SuperAdmin (tu, el dueno del SaaS) - sin tenant, accede a todo
+        // Configurable via appsettings o variables de entorno:
+        //   SuperAdmin__Username
+        //   SuperAdmin__Password
+        //   SuperAdmin__Email
+        var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        var adminUsername = config["SuperAdmin:Username"] ?? "admin";
+        var adminPassword = config["SuperAdmin:Password"] ?? "Yeison123!";
+        var adminEmail = config["SuperAdmin:Email"] ?? "admin@inventario.com";
+
         var adminUser = new AppUser
         {
-            UserName = "admin",
-            Email = "admin@inventario.com",
+            UserName = adminUsername,
+            Email = adminEmail,
             EmailConfirmed = true,
             TenantId = null
         };
@@ -134,17 +143,14 @@ async Task CreateDefaultUsers(IServiceProvider services)
         var existingAdmin = await userManager.FindByNameAsync(adminUser.UserName);
         if (existingAdmin == null)
         {
-            // Password fijo para desarrollo/pruebas
-            // IMPORTANTE: Cambiar despues del primer login en produccion
-            var password = "Yeison123!";
-            var adminResult = await userManager.CreateAsync(adminUser, password);
+            var adminResult = await userManager.CreateAsync(adminUser, adminPassword);
             if (adminResult.Succeeded)
             {
                 await userManager.AddToRoleAsync(adminUser, "Admin");
                 Console.WriteLine("========================================");
                 Console.WriteLine("SUPERADMIN CREADO:");
-                Console.WriteLine($"  Usuario: admin");
-                Console.WriteLine($"  Password: {password}");
+                Console.WriteLine($"  Usuario: {adminUsername}");
+                Console.WriteLine($"  Password: {adminPassword}");
                 Console.WriteLine("  (CAMBIA ESTA CONTRASENA DESPUES DEL PRIMER LOGIN)");
                 Console.WriteLine("========================================");
             }
@@ -155,39 +161,32 @@ async Task CreateDefaultUsers(IServiceProvider services)
         }
         else
         {
-            // Eliminar el admin existente y recrearlo con la contraseña correcta
-            var deleteResult = await userManager.DeleteAsync(existingAdmin);
-            
-            if (deleteResult.Succeeded)
+            // Asegurar que tenga el rol Admin
+            if (!await userManager.IsInRoleAsync(existingAdmin, "Admin"))
             {
-                var password = "Yeison123!";
-                var newAdmin = new AppUser
+                await userManager.AddToRoleAsync(existingAdmin, "Admin");
+            }
+
+            // Si se configuro una contraseña explicita, actualizarla (util para recuperacion)
+            if (!string.IsNullOrWhiteSpace(config["SuperAdmin:Password"]))
+            {
+                var token = await userManager.GeneratePasswordResetTokenAsync(existingAdmin);
+                var resetResult = await userManager.ResetPasswordAsync(existingAdmin, token, adminPassword);
+                if (resetResult.Succeeded)
                 {
-                    UserName = "admin",
-                    Email = "admin@inventario.com",
-                    EmailConfirmed = true,
-                    TenantId = null
-                };
-                
-                var createResult = await userManager.CreateAsync(newAdmin, password);
-                if (createResult.Succeeded)
-                {
-                    await userManager.AddToRoleAsync(newAdmin, "Admin");
                     Console.WriteLine("========================================");
-                    Console.WriteLine("SUPERADMIN RECREADO:");
-                    Console.WriteLine($"  Usuario: admin");
-                    Console.WriteLine($"  Password: {password}");
-                    Console.WriteLine("  (CAMBIA ESTA CONTRASENA DESPUES DEL PRIMER LOGIN)");
+                    Console.WriteLine("SUPERADMIN PASSWORD ACTUALIZADA DESDE CONFIG:");
+                    Console.WriteLine($"  Usuario: {adminUsername}");
                     Console.WriteLine("========================================");
                 }
                 else
                 {
-                    Console.WriteLine($"Error recreando SuperAdmin: {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
+                    Console.WriteLine($"Error actualizando password de SuperAdmin: {string.Join(", ", resetResult.Errors.Select(e => e.Description))}");
                 }
             }
             else
             {
-                Console.WriteLine($"Error eliminando SuperAdmin anterior: {string.Join(", ", deleteResult.Errors.Select(e => e.Description))}");
+                Console.WriteLine($"SuperAdmin '{adminUsername}' ya existe (no se modifico la contraseña)");
             }
         }
 
