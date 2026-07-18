@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shelf - Admin Tienda</title>
+    <link rel="stylesheet" href="/views/admin/dashboard-admin.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                </svg>
+            </div>
+            <div class="sidebar-title">Shelf</div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-title">Principal</div>
+                <div class="nav-item active" data-view="dashboard">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                    <span>Dashboard</span>
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Inventario</div>
+                <div class="nav-item" data-view="add-product">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>Agregar Producto</span>
+                </div>
+                <div class="nav-item" data-view="products">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                    </svg>
+                    <span>Productos</span>
+                </div>
+                <div class="nav-item" data-view="categorias">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                    </svg>
+                    <span>Categorías</span>
+                </div>
+                <div class="nav-item" data-view="almacenes">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    </svg>
+                    <span>Almacenes</span>
+                </div>
+                <div class="nav-item" data-view="movimientos">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <polyline points="17 1 21 5 17 9"></polyline>
+                        <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                        <polyline points="7 23 3 19 7 15"></polyline>
+                        <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                    </svg>
+                    <span>Movimientos</span>
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Mi Tienda</div>
+                <div class="nav-item" data-view="empleados">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <span>Empleados</span>
+                </div>
+            </div>
+
+            <div class="nav-section" style="margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div class="nav-item" id="btnLogout" style="color: #ef4444; cursor: pointer;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    <span>Cerrar Sesión</span>
+                </div>
+            </div>
+        </nav>
+    </aside>
+
+    <div class="main-wrapper" id="mainWrapper">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menuToggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <h1 class="header-title" id="pageTitle">Dashboard</h1>
+            </div>
+            <div class="header-right">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">T</div>
+                    <span id="userName">Admin Tienda</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="content">
+            <!-- DASHBOARD -->
+            <section id="view-dashboard" class="view-section active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div>
+                                <div class="stat-value" id="totalProductos">0</div>
+                                <div class="stat-label">Total Productos</div>
+                            </div>
+                            <div class="stat-icon blue">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div>
+                                <div class="stat-value" id="totalValor">$0.00</div>
+                                <div class="stat-label">Valor Total</div>
+                            </div>
+                            <div class="stat-icon green">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div>
+                                <div class="stat-value" id="totalUnidades">0</div>
+                                <div class="stat-label">Unidades en Stock</div>
+                            </div>
+                            <div class="stat-icon orange">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div>
+                                <div class="stat-value" id="totalEmpleados">0</div>
+                                <div class="stat-label">Empleados</div>
+                            </div>
+                            <div class="stat-icon purple">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Productos Recientes</h2>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr><th>Código</th><th>Descripción</th><th>P. Compra</th><th>P. Venta</th><th>Cantidad</th></tr>
+                            </thead>
+                            <tbody id="dashboardTable">
+                                <tr><td colspan="5" style="text-align: center; color: #999;">Cargando productos...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- AGREGAR PRODUCTO -->
+            <section id="view-add-product" class="view-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Agregar Nuevo Producto</h2>
+                    </div>
+                    <form id="formProducto">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="codigo">Código (SKU)*</label>
+                                <input type="text" id="codigo" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="descripcion">Descripción*</label>
+                                <input type="text" id="descripcion" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="precioCompra">Precio Compra*</label>
+                                <input type="number" id="precioCompra" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="precioVenta">Precio Venta*</label>
+                                <input type="number" id="precioVenta" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="categoriaProducto">Categoría*</label>
+                                <select id="categoriaProducto" required style="width: 100%; padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="cantidad">Cantidad Inicial*</label>
+                                <input type="number" id="cantidad" step="0.01" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Agregar Producto</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- GESTIÓN PRODUCTOS -->
+            <section id="view-products" class="view-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Gestión de Productos</h2>
+                        <button class="btn btn-primary" id="btnNuevoProducto">Nuevo Producto</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr><th>Código</th><th>Descripción</th><th>P. Compra</th><th>P. Venta</th><th>Stock</th><th>Acciones</th></tr>
+                            </thead>
+                            <tbody id="productosTableBody">
+                                <tr><td colspan="6" style="text-align: center; color: #999;">No hay productos</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CATEGORÍAS -->
+            <section id="view-categorias" class="view-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Categorías</h2>
+                        <button class="btn btn-primary" id="btnNuevaCategoria">Nueva Categoría</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead><tr><th>ID</th><th>Nombre</th><th>Productos</th><th>Acciones</th></tr></thead>
+                            <tbody id="categoriasTableBody">
+                                <tr><td colspan="4" style="text-align: center; color: #999;">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ALMACENES -->
+            <section id="view-almacenes" class="view-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Almacenes</h2>
+                        <button class="btn btn-primary" id="btnNuevoAlmacen">Nuevo Almacén</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead><tr><th>ID</th><th>Nombre</th><th>Ubicación</th><th>Acciones</th></tr></thead>
+                            <tbody id="almacenesTableBody">
+                                <tr><td colspan="4" style="text-align: center; color: #999;">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- MOVIMIENTOS -->
+            <section id="view-movimientos" class="view-section">
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-header">
+                        <h2 class="card-title">Registrar Movimiento</h2>
+                    </div>
+                    <form id="formMovimiento">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="movProducto">Producto*</label>
+                                <select id="movProducto" required style="width: 100%; padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="movAlmacen">Almacén*</label>
+                                <select id="movAlmacen" required style="width: 100%; padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="movTipo">Tipo*</label>
+                                <select id="movTipo" required style="width: 100%; padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                    <option value="1">Entrada</option>
+                                    <option value="2">Salida</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="movCantidad">Cantidad*</label>
+                                <input type="number" id="movCantidad" step="0.01" min="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="movReferencia">Referencia</label>
+                                <input type="text" id="movReferencia" placeholder="Factura/OC/usuario...">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Registrar Movimiento</button>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Historial de Movimientos</h2>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr><th>Fecha</th><th>Producto</th><th>Almacén</th><th>Tipo</th><th>Cantidad</th><th>Referencia</th></tr>
+                            </thead>
+                            <tbody id="movimientosTableBody">
+                                <tr><td colspan="6" style="text-align: center; color: #999;">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- EMPLEADOS -->
+            <section id="view-empleados" class="view-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Empleados de Mi Tienda</h2>
+                        <button class="btn btn-primary" id="btnNuevoEmpleado">Nuevo Empleado</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr><th>Usuario</th><th>Email</th><th>Rol</th><th>Acciones</th></tr>
+                            </thead>
+                            <tbody id="empleadosTableBody">
+                                <tr><td colspan="4" style="text-align: center; color: #999;">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- MODAL EMPLEADO -->
+    <div id="modalEmpleado" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 500px; width: 90%; background: white; border-radius: 16px; padding: 0; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+            <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 24px; color: white;">
+                <h3 style="margin: 0; font-size: 24px; font-weight: 600;">Nuevo Empleado</h3>
+                <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 14px;">Crea un empleado para tu tienda</p>
+            </div>
+            <form id="formEmpleado" style="padding: 24px;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151; font-size: 14px;">Nombre de Usuario *</label>
+                    <input type="text" id="empUsername" required placeholder="Ej: cajero1" style="width: 100%; padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151; font-size: 14px;">Email *</label>
+                    <input type="email" id="empEmail" required placeholder="empleado@tienda.com" style="width: 100%; padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                </div>
+                <div style="margin-bottom: 24px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151; font-size: 14px;">Contraseña *</label>
+                    <input type="password" id="empPassword" required placeholder="Mín 10, mayús/minús/número/esp" style="width: 100%; padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button type="button" class="btn" onclick="cerrarModalEmpleado()" style="background-color: #f3f4f6; color: #374151;">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Empleado</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/auth-fetch.js"></script>
+    <script src="dashboard-admintienda.js"></script>
+</body>
+</html>
