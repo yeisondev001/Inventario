@@ -87,14 +87,14 @@ public class TenantsController : ControllerBase
         if (await _userManager.FindByNameAsync(dto.Username) != null)
             return BadRequest(new { Message = "El nombre de usuario ya esta en uso" });
 
-        if (await _userManager.FindByEmailAsync(dto.Email) != null)
+        if (!string.IsNullOrWhiteSpace(dto.Email) && await _userManager.FindByEmailAsync(dto.Email) != null)
             return BadRequest(new { Message = "El email ya esta registrado" });
 
         var password = GenerateRandomPassword();
         var newAdmin = new AppUser
         {
             UserName = dto.Username,
-            Email = dto.Email,
+            Email = string.IsNullOrWhiteSpace(dto.Email) ? null : dto.Email.Trim(),
             EmailConfirmed = true,
             TenantId = tenantId
         };
