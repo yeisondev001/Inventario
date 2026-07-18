@@ -153,25 +153,39 @@ async Task CreateDefaultUsers(IServiceProvider services)
         }
         else
         {
-            // Actualizar contraseña si el admin ya existe
-            var password = "Yeison123!";
-            var resetToken = await userManager.GeneratePasswordResetTokenAsync(existingAdmin);
-            var resetResult = await userManager.ResetPasswordAsync(existingAdmin, resetToken, password);
+            // Eliminar el admin existente y recrearlo con la contraseña correcta
+            var deleteResult = await userManager.DeleteAsync(existingAdmin);
             
-            await userManager.AddToRoleAsync(existingAdmin, "Admin");
-            
-            if (resetResult.Succeeded)
+            if (deleteResult.Succeeded)
             {
-                Console.WriteLine("========================================");
-                Console.WriteLine("SUPERADMIN ACTUALIZADO:");
-                Console.WriteLine($"  Usuario: admin");
-                Console.WriteLine($"  Password: {password}");
-                Console.WriteLine("  (CAMBIA ESTA CONTRASENA DESPUES DEL PRIMER LOGIN)");
-                Console.WriteLine("========================================");
+                var password = "Yeison123!";
+                var newAdmin = new AppUser
+                {
+                    UserName = "admin",
+                    Email = "admin@inventario.com",
+                    EmailConfirmed = true,
+                    TenantId = null
+                };
+                
+                var createResult = await userManager.CreateAsync(newAdmin, password);
+                if (createResult.Succeeded)
+                {
+                    await userManager.AddToRoleAsync(newAdmin, "Admin");
+                    Console.WriteLine("========================================");
+                    Console.WriteLine("SUPERADMIN RECREADO:");
+                    Console.WriteLine($"  Usuario: admin");
+                    Console.WriteLine($"  Password: {password}");
+                    Console.WriteLine("  (CAMBIA ESTA CONTRASENA DESPUES DEL PRIMER LOGIN)");
+                    Console.WriteLine("========================================");
+                }
+                else
+                {
+                    Console.WriteLine($"Error recreando SuperAdmin: {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
+                }
             }
             else
             {
-                Console.WriteLine($"SuperAdmin 'admin' ya existe (error actualizando password: {string.Join(", ", resetResult.Errors.Select(e => e.Description))})");
+                Console.WriteLine($"Error eliminando SuperAdmin anterior: {string.Join(", ", deleteResult.Errors.Select(e => e.Description))}");
             }
         }
 
